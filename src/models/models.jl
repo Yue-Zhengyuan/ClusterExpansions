@@ -53,7 +53,7 @@ _envspace(::GradedSpace{SU2Irrep, TensorKit.SortedVectorDict{SU2Irrep, Int64}}) 
 _envspace(::GradedSpace{FermionParity, Tuple{Int64, Int64}}) = χ -> Vect[FermionParity](0 => χ-div(χ,2), 1 => div(χ,2))
 _envspace(space::GradedSpace{ProductSector{T},T2}) where {T <: Tuple, T2} = χ -> Vect[sectortype(space)](ntuple(_ -> 0, fieldcount(T)) => χ)
 
-function ClusterExpansion(twosite_op, onesite_op; nn_term = nothing, p = 3, verbosity = 0, T = Complex{BigFloat}, spaces = i -> (i >= 0) ? ℂ^(2^(i)) : ℂ^10, symmetry = "C4", solving_loops = true, svd = true, envspace = χ -> ℂ^χ)
+function ClusterExpansion(twosite_op, onesite_op; nn_term = nothing, p = 3, verbosity = 0, T = ComplexF64, spaces = i -> (i >= 0) ? ℂ^(2^(i)) : ℂ^10, symmetry = "C4", solving_loops = true, svd = true, envspace = χ -> ℂ^χ)
     return ClusterExpansion(twosite_op, onesite_op, nn_term, p, verbosity, T, spaces, symmetry, solving_loops, svd, envspace)
 end
 
@@ -88,7 +88,7 @@ function spaces_ising(spin_symmetry, smaller_spaces; loop_space = nothing)
     return spaces, envspace
 end
 
-function ising_operators(J, g, z; spin_symmetry = Trivial, T = Complex{BigFloat}, loop_space = nothing, kwargs...)
+function ising_operators(J, g, z; spin_symmetry = Trivial, T = ComplexF64, loop_space = nothing, kwargs...)
     twosite_op = rmul!(PEPSKit.σᶻᶻ(T, spin_symmetry), -J)
     if spin_symmetry == Trivial
         onesite_op = rmul!(PEPSKit.σˣ(T), g * -J) + rmul!(PEPSKit.σᶻ(T), z * -J)
@@ -101,7 +101,7 @@ function ising_operators(J, g, z; spin_symmetry = Trivial, T = Complex{BigFloat}
     return ClusterExpansion(twosite_op, onesite_op; spaces, envspace, kwargs...)
 end
 
-function spinless_fermion_operators(t, V, μ; b = 0.0, δ = 0.0, T = Complex{BigFloat}, loop_space = Vect[fℤ₂](0 => 5, 1 => 5), kwargs...)
+function spinless_fermion_operators(t, V, μ; b = 0.0, δ = 0.0, T = ComplexF64, loop_space = Vect[fℤ₂](0 => 5, 1 => 5), kwargs...)
     pspace = Vect[fℤ₂](0 => 1, 1 => 1)
 
     kinetic_operator = FermionOperators.f_hop(T)
@@ -197,14 +197,14 @@ function spaces_heisenberg(spin_symmetry; loop_space = ℂ^4)
     return spaces, envspace
 end
 
-function heisenberg_XXX_operators(Jx; spin = 1//2, spin_symmetry = Trivial, T = Complex{BigFloat}, loop_space = ℂ^4, kwargs...)
+function heisenberg_XXX_operators(Jx; spin = 1//2, spin_symmetry = Trivial, T = ComplexF64, loop_space = ℂ^4, kwargs...)
     twosite_op = rmul!(SpinOperators.S_exchange(T, spin_symmetry; spin=spin), Jx)
     onesite_op = rmul!(id(SpinOperators.spin_space(spin_symmetry; spin=spin)), T(0))
     spaces, envspace = spaces_heisenberg(spin_symmetry; loop_space)
     return ClusterExpansion(twosite_op, onesite_op; spaces, envspace, kwargs...)
 end
 
-function heisenberg_operators(Jx, Jy, Jz, h; spin = 1//2, spin_symmetry = Trivial, T = Complex{BigFloat}, loop_space = ℂ^4, kwargs...)
+function heisenberg_operators(Jx, Jy, Jz, h; spin = 1//2, spin_symmetry = Trivial, T = ComplexF64, loop_space = ℂ^4, kwargs...)
     if Jx == Jy == Jz && h == 0.0
         return heisenberg_XXX_operators(Jx; spin=spin, spin_symmetry=spin_symmetry, T=T, loop_space=loop_space, kwargs...)
     end
@@ -234,7 +234,7 @@ function heisenberg_operators(; kwargs...)
     return heisenberg_operators(1.0, 1.0, 1.0, 0.0; kwargs...)
 end
 
-function J1J2_operators(J1, J2, h; spin = 1//2, spin_symmetry = Trivial, T = Complex{BigFloat}, loop_space = ℂ^4, kwargs...)
+function J1J2_operators(J1, J2, h; spin = 1//2, spin_symmetry = Trivial, T = ComplexF64, loop_space = ℂ^4, kwargs...)
     twosite_op =  rmul!(SpinOperators.S_exchange(T, spin_symmetry; spin), J1)
     nn_term = rmul!(SpinOperators.S_exchange(T, spin_symmetry; spin), J2)
     if h == 0.0
@@ -248,7 +248,7 @@ function J1J2_operators(J1, J2, h; spin = 1//2, spin_symmetry = Trivial, T = Com
     return ClusterExpansion(twosite_op, onesite_op; nn_term, spaces, envspace, kwargs...)
 end
 
-function tJ_operators(t, J, μ; t′ = 0.0, particle_symmetry = Trivial, spin_symmetry = Trivial, slave_fermion = false, T = Complex{BigFloat}, filling = 1, kwargs...)
+function tJ_operators(t, J, μ; t′ = 0.0, particle_symmetry = Trivial, spin_symmetry = Trivial, slave_fermion = false, T = ComplexF64, filling = 1, kwargs...)
     hopping_operator = TJOperators.e_hop(T, particle_symmetry, spin_symmetry; slave_fermion)
     number_operator = TJOperators.e_num(T, particle_symmetry, spin_symmetry; slave_fermion)
     heisenberg_operators = TJOperators.S_exchange(particle_symmetry, spin_symmetry; slave_fermion) - (filling^2 / 4) * (number_operator ⊗ number_operator)
@@ -295,7 +295,7 @@ function tJ_operators(; kwargs...)
     return tJ_operators(2.5, 1.0, 0.0; kwargs...)
 end
 
-function hubbard_operators(t, U, μ; particle_symmetry = Trivial, spin_symmetry = Trivial, T = Complex{BigFloat}, loop_space = Vect[fℤ₂](0 => 4, 1 => 4), kwargs...)
+function hubbard_operators(t, U, μ; particle_symmetry = Trivial, spin_symmetry = Trivial, T = ComplexF64, loop_space = Vect[fℤ₂](0 => 4, 1 => 4), kwargs...)
     pspace = HubbardOperators.hubbard_space(particle_symmetry, spin_symmetry)
     hopping_operator = HubbardOperators.e_hop(T, particle_symmetry, spin_symmetry)
     U_operator = (HubbardOperators.nꜛ(T, particle_symmetry, spin_symmetry) - id(pspace) / 2) *

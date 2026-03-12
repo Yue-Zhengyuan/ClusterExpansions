@@ -194,8 +194,8 @@ function solve_index(T, A, exp_H, conjugated, sites_to_update, levels_to_update,
         included_sites = setdiff(1:N, sites_to_update)
         exp_H_flipped = permute(exp_H, ((included_sites..., (included_sites .+ N)...), (sites_to_update..., (sites_to_update .+ N)...)))
 
-        if scalartype(exp_H) == Complex{BigFloat}
-            x, info = lssolve(apply_A, exp_H_flipped, LSMR(verbosity = verbosity, maxiter = 2000, tol = BigFloat(1e-36)))
+        if scalartype(exp_H) == ComplexF64
+            x, info = lssolve(apply_A, exp_H_flipped, LSMR(verbosity = verbosity, maxiter = 2000, tol = 1e-16))
             # x = permute(x, ((1,6,3,4,8), (2,7,9,5,10)))
             # x = (x + x')/2
             # x = permute(x, ((1,6,3,4,9), (2,7,5,8,10)))
@@ -216,8 +216,8 @@ function solve_index(T, A, exp_H, conjugated, sites_to_update, levels_to_update,
         included_sites = setdiff(1:N, sites_to_update[1])
         exp_H_flipped = permute(exp_H, ((included_sites..., (included_sites .+ N)...), (sites_to_update[1], sites_to_update[1]+N)))
 
-        if scalartype(exp_H) == Complex{BigFloat}
-            x, info = lssolve(apply_A, exp_H_flipped, LSMR(verbosity = verbosity, maxiter = 2000, tol = BigFloat(1e-36)))
+        if scalartype(exp_H) == ComplexF64
+            x, info = lssolve(apply_A, exp_H_flipped, LSMR(verbosity = verbosity, maxiter = 2000, tol = 1e-16))
         else
             x, info = lssolve(apply_A, exp_H_flipped, LSMR(verbosity = verbosity, maxiter = 1000))
         end

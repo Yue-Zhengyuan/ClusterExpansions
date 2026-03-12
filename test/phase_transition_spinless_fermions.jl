@@ -1,6 +1,6 @@
 using TensorKit
-using TensorKitTensors
 using MPSKit
+using MPSKitModels
 using ClusterExpansions
 using PEPSKit
 using Test
@@ -16,11 +16,12 @@ maxiter = ceil((max_beta - β₀)/Δβ)
 
 time_alg = UniformTimeEvolution(β₀, Δβ, maxiter)
 trunc_alg = NoEnvTruncation(truncdim(Dcut))
-ce_alg = spinless_fermion_operators(1.0, V, 0.0; symmetry = nothing, T = BigFloat)
+ce_alg = spinless_fermion_operators(1.0, V, 0.0; symmetry = nothing, T = Float64)
 
 # Define observables
 vumps_alg = VUMPS(; maxiter = 100, verbosity = 0)
-observables = PEPO_observables([FermionOperators.f_num(), :spectrum], vumps_alg)
+num = c_number(Float64)
+observables = PEPO_observables([num, :spectrum], vumps_alg)
 obs_function = (O,i) -> ClusterExpansions.calculate_observables(O, χenv, observables)
 
 βs, expvals, As = time_evolve(ce_alg, time_alg, trunc_alg, obs_function)

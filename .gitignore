@@ -1,7 +1,5 @@
 Manifest.toml
 .DS_Store
 .vscode/launch.json
-GenericLinearAlgebra.jl
-TensorKit.jl
 deprecated
 data

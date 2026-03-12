@@ -23,7 +23,7 @@ setprecision(128)
 end
 
 @testset "Loop solver" begin
-    T = Complex{BigFloat}
+    T = ComplexF64
     β = 1e-2
     symmetry = "C4"
 

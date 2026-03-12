@@ -111,6 +111,18 @@ function get_env_alg(observables::Vector{PEPOObservable}, alg_type)
     return algs[1]
 end
 
+function trace_physicalspaces(O::PEPSKit.PEPOTensor)
+    @plansor t[W S; N E] := O[p p; N E S W]
+    return t
+end
+
+function trace_out(ρ::InfinitePEPO)
+    @assert size(ρ, 3) == 1
+    return InfinitePartitionFunction(
+        trace_physicalspaces.(reshape(ρ.A, size(ρ, 1), size(ρ, 2)))
+    )
+end
+
 function calculate_observables(O::AbstractTensorMap{E,S,2,4}, χ::Int, observables) where {E,S}
     envspace = _envspace(codomain(O)[1])(χ)
     env_algs = _env_algs(observables)
@@ -118,7 +130,7 @@ function calculate_observables(O::AbstractTensorMap{E,S,2,4}, χ::Int, observabl
     vumps_alg = get_env_alg(observables, VUMPS)
     ctm_alg = get_env_alg(observables, PEPSKit.CTMRGAlgorithm)
     ρ = InfinitePEPO(O)
-    pf = PEPSKit.trace_out(ρ)
+    pf = trace_out(ρ)
     if :VUMPS ∈ env_algs
         T = InfiniteMPO([pf[1,1]])
         pspace = domain(pf[1,1])[2]

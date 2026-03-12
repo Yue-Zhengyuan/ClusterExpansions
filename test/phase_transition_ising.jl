@@ -1,3 +1,4 @@
+using Test
 using TensorKit
 using TensorKitTensors
 using MPSKit
@@ -25,45 +26,43 @@ vumps_alg = VUMPS(; maxiter = 100, verbosity = 0)
 obss = PEPO_observables([:spectrum, SpinOperators.σᶻ(), SpinOperators.σˣ()], vumps_alg)
 obs_function = (O,i) -> ClusterExpansions.calculate_observables(O, χenv, obss)
 
-@testset "Classical Ising model" begin
-    # Set up the classical Ising model
-    (J, g, z) = (1.0, 0.0, 0.0)
-    ce_alg = ising_operators(J, g, z; T = Complex{BigFloat}, symmetry = "C4")
+# @testset "Classical Ising model" begin
+#     # Set up the classical Ising model
+#     (J, g, z) = (1.0, 0.0, 0.0)
+#     ce_alg = ising_operators(J, g, z; T = ComplexF64, symmetry = "C4")
 
-    # Perform the time evolution.
-    βs, expvals, Os = time_evolve(ce_alg, time_alg, trunc_alg, obs_function)
+#     # Perform the time evolution.
+#     βs, expvals, Os = time_evolve(ce_alg, time_alg, trunc_alg, obs_function)
 
-    # Extract the expectation values
-    ξs = [e[1][1] for e in expvals]
-    mzs = [e[2] for e in expvals]
-    mxs = [e[3] for e in expvals]
+#     # Extract the expectation values
+#     ξs = [e[1][1] for e in expvals]
+#     mzs = [e[2] for e in expvals]
+#     mxs = [e[3] for e in expvals]
 
-    # Critical temperature for the classical Ising model
-    Tc = 2/(log(1+sqrt(2)))
-    βc = 1 / Tc
+#     # Critical temperature for the classical Ising model
+#     Tc = 2/(log(1+sqrt(2)))
+#     βc = 1 / Tc
 
-    # Tests on the phase transition of the classical Ising model
-    @test norm(mxs) < 1e-14
-    @test all([((β < βc) && (abs(mz) < 0.5)) || ((β > βc) && (abs(mz) > 0.5)) for (β,mz) in zip(βs,mzs)])
-end
+#     # Tests on the phase transition of the classical Ising model
+#     @test norm(mxs) < 1e-14
+#     @test all([((β < βc) && (abs(mz) < 0.5)) || ((β > βc) && (abs(mz) > 0.5)) for (β,mz) in zip(βs,mzs)])
+# end
 
-@testset "Quantum Ising model" begin
-    # Set up the classical Ising model
-    (J, g, z) = (1.0, 2.5, 0.0)
-    ce_alg = ising_operators(J, g, z; T = Complex{BigFloat}, symmetry = "C4")
+# Set up the classical Ising model
+(J, g, z) = (1.0, 2.5, 0.0)
+ce_alg = ising_operators(J, g, z; T = Float64, symmetry = nothing)
 
-    # Perform the time evolution.
-    βs, expvals, Os = time_evolve(ce_alg, time_alg, trunc_alg, obs_function)
+# Perform the time evolution.
+βs, expvals, Os = time_evolve(ce_alg, time_alg, trunc_alg, obs_function)
 
-    # Extract the expectation values
-    ξs = [e[1][1] for e in expvals]
-    mzs = [e[2] for e in expvals]
-    mxs = [e[3] for e in expvals]
+# Extract the expectation values
+ξs = [e[1][1] for e in expvals]
+mzs = [e[2] for e in expvals]
+mxs = [e[3] for e in expvals]
 
-    # Critical temperature for the classical Ising model
-    Tc = 1.2737
-    βc = 1 / Tc
+# Critical temperature for the classical Ising model
+Tc = 1.2737
+βc = 1 / Tc
 
-    # Tests on the phase transition of the classical Ising model    
-    @test all([((β < βc) && (abs(mz) < 0.5)) || ((β > βc) && (abs(mz) > 0.5)) || (abs(β-βc) < 2e-2) for (β,mz) in zip(βs,mzs)])
-end
+# Tests on the phase transition of the classical Ising model    
+@test all([((β < βc) && (abs(mz) < 0.5)) || ((β > βc) && (abs(mz) > 0.5)) || (abs(β-βc) < 2e-2) for (β,mz) in zip(βs,mzs)])

@@ -13,7 +13,7 @@ function construct_PEPO_loop(A_NW)
     return [A_NW, A_NE, A_SE, A_SW]
 end
 
-function solve_4_loop_optim(RHS, spaces, levels_to_update; verbosity = 1, symmetry = nothing, gradtol = 1.0e-9)
+function solve_4_loop_optim(RHS, spaces, levels_to_update; verbosity = 1, gradtol = 1.0e-9)
     T = scalartype(RHS)
     vspace = spaces(-1)
     trivspace = spaces(0)

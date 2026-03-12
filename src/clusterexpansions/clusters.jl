@@ -10,7 +10,7 @@ struct Cluster
     n
 end
 
-function Cluster(cluster; levels_convention = "tree_depth", symmetry = nothing)
+function Cluster(cluster; levels_convention = "tree_depth")
     N = length(cluster)
     bonds_sites, bonds_indices = get_bonds(cluster)
     diag_bonds_sites, diag_bonds_indices = get_diag_bonds(cluster)

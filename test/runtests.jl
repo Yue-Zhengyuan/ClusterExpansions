@@ -11,7 +11,3 @@ end
 @time @safetestset "Phase transition - Spinless Fermion model" begin
     include("phase_transition_spinless_fermions.jl")
 end
-
-@time @safetestset "Utility functions" begin
-    include("utility_functions.jl")
-end

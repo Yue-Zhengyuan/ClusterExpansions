@@ -16,7 +16,7 @@ maxiter = ceil((max_beta - β₀) / Δβ)
 
 time_alg = UniformTimeEvolution(β₀, Δβ, maxiter)
 trunc_alg = NoEnvTruncation(truncdim(Dcut))
-ce_alg = spinless_fermion_operators(1.0, V, 0.0; symmetry = nothing, T = Float64)
+ce_alg = spinless_fermion_operators(1.0, V, 0.0; T = Float64)
 
 # Define observables
 vumps_alg = VUMPS(; maxiter = 100, verbosity = 0)

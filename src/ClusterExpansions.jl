@@ -36,8 +36,6 @@ include("clusterexpansions/solvers/nonlinearsolvers_optimkit.jl")
 include("clusterexpansions/solve_clusters.jl")
 
 export EntanglementFiltering, filter_loop, truncate_loop
-export rotl90_fermionic, rotl180_fermionic
-export symmetrize
 
 export Canonicalization, canonicalize
 export PEPOObservable, PEPO_observables, localoperator_model, calculate_observables

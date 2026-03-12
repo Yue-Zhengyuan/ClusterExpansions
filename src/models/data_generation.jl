@@ -1,5 +1,5 @@
 function data_generation_SF_CE(time_alg, trunc_alg, χenv; V = 0.0, name = "SF_model_V_$(V).jld2", saving = false)
-    ce_alg = spinless_fermion_operators(1.0, V, 0.0; symmetry = nothing, T = ComplexF64)
+    ce_alg = spinless_fermion_operators(1.0, V, 0.0; T = ComplexF64)
 
     # Define observables
     vumps_alg = VUMPS(; maxiter = 100, verbosity = 0)

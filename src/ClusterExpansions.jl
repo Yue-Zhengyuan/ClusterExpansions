@@ -8,9 +8,6 @@ using PEPSKit
 using Graphs
 using Zygote, OptimKit
 
-include("clusterexpansions/utility/loop_filtering.jl")
-include("clusterexpansions/utility/symmetries.jl")
-
 include("utility/canonical_form.jl")
 include("utility/observables.jl")
 

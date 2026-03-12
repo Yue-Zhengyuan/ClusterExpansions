@@ -24,7 +24,7 @@ trunc_alg = NoEnvTruncation(truncdim(Dcut); verbosity = 0)
 # Define observables
 vumps_alg = VUMPS(; maxiter = 100, verbosity = 0)
 obss = PEPO_observables([:spectrum, SpinOperators.σᶻ(), SpinOperators.σˣ()], vumps_alg)
-obs_function = (O,i) -> ClusterExpansions.calculate_observables(O, χenv, obss)
+obs_function = (O, i) -> ClusterExpansions.calculate_observables(O, χenv, obss)
 
 # @testset "Classical Ising model" begin
 #     # Set up the classical Ising model
@@ -64,5 +64,5 @@ mxs = [e[3] for e in expvals]
 Tc = 1.2737
 βc = 1 / Tc
 
-# Tests on the phase transition of the classical Ising model    
-@test all([((β < βc) && (abs(mz) < 0.5)) || ((β > βc) && (abs(mz) > 0.5)) || (abs(β-βc) < 2e-2) for (β,mz) in zip(βs,mzs)])
+# Tests on the phase transition of the classical Ising model
+@test all([((β < βc) && (abs(mz) < 0.5)) || ((β > βc) && (abs(mz) > 0.5)) || (abs(β - βc) < 2.0e-2) for (β, mz) in zip(βs, mzs)])

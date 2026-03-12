@@ -12,7 +12,7 @@ Dcut = 8
 max_beta = 1.0
 β₀ = 0.01
 Δβ = 0.01
-maxiter = ceil((max_beta - β₀)/Δβ)
+maxiter = ceil((max_beta - β₀) / Δβ)
 
 time_alg = UniformTimeEvolution(β₀, Δβ, maxiter)
 trunc_alg = NoEnvTruncation(truncdim(Dcut))
@@ -22,7 +22,7 @@ ce_alg = spinless_fermion_operators(1.0, V, 0.0; symmetry = nothing, T = Float64
 vumps_alg = VUMPS(; maxiter = 100, verbosity = 0)
 num = c_number(Float64)
 observables = PEPO_observables([num, :spectrum], vumps_alg)
-obs_function = (O,i) -> ClusterExpansions.calculate_observables(O, χenv, observables)
+obs_function = (O, i) -> ClusterExpansions.calculate_observables(O, χenv, observables)
 
 βs, expvals, As = time_evolve(ce_alg, time_alg, trunc_alg, obs_function)
 

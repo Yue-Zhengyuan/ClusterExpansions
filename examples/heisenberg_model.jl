@@ -21,8 +21,8 @@ Dcut = 4
 trunc_alg = NoEnvTruncation(truncdim(Dcut))
 
 # Set up time evolution algorithm
-β₀ = 1e-1
-Δβ = 1e-1
+β₀ = 1.0e-1
+Δβ = 1.0e-1
 maxiter = 10
 time_alg = UniformTimeEvolution(β₀, Δβ, maxiter; verbosity = 2)
 
@@ -30,7 +30,7 @@ time_alg = UniformTimeEvolution(β₀, Δβ, maxiter; verbosity = 2)
 H = localoperator_model(SpinOperators.spin_space(spin_symmetry), SpinOperators.S_exchange(spin_symmetry))
 ctm_alg = SimultaneousCTMRG(; maxiter = 250, verbosity = 0)
 observables = PEPO_observables([H], ctm_alg)
-observable = (O,i) -> ClusterExpansions.calculate_observables(O, χenv, observables)
+observable = (O, i) -> ClusterExpansions.calculate_observables(O, χenv, observables)
 
 # Perform the actual time evolution.
 # `βs` is a list of times/βs at which the expectation values are computed

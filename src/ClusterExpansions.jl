@@ -45,8 +45,7 @@ export heisenberg_operators, J1J2_operators
 export tJ_operators, hubbard_operators
 
 export evolution_operator
-export StaticTimeEvolution, TimeDependentTimeEvolution
-export UniformTimeEvolution, SquaringTimeEvolution
+export StaticTimeEvolution, UniformTimeEvolution
 export time_evolve, time_evolve_model
 
 export clusterexpansion

@@ -43,7 +43,7 @@ export Canonicalization, canonicalize
 export PEPOObservable, PEPO_observables, localoperator_model, calculate_observables
 
 export fidelity, apply_PEPO_exact
-export ApproximateEnvTruncation, NoEnvTruncation
+export NoEnvTruncation
 export VOPEPO_CTMRG, VOPEPO_VUMPS
 export approximate_state
 

@@ -1,3 +1,5 @@
+abstract type EnvTruncation end
+
 struct NoEnvTruncation <: EnvTruncation
     trscheme::TruncationScheme
     check_fidelity::Bool

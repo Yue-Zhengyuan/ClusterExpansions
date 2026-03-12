@@ -24,25 +24,6 @@ struct StaticTimeEvolution <: TimeEvolution
     verbosity
 end
 
-struct GroundStateTimeEvolution <: TimeEvolution
-    β₀
-    βs_helper
-    update_list
-    tol_energy
-    verbosity
-end
-
-struct GroundStateFillingTimeEvolution <: TimeEvolution
-    β₀
-    Δβ
-    maxiter
-    f_target
-    μ₀
-    α
-    tol_energy
-    verbosity
-end
-
 function StaticTimeEvolution(β₀, βs_helper, update_list; verbosity = 0)
     return StaticTimeEvolution(β₀, βs_helper, update_list, verbosity)
 end
@@ -51,24 +32,12 @@ function UniformTimeEvolution(β₀, Δβ, maxiter; verbosity = 0)
     return StaticTimeEvolution(β₀, [Δβ], [1 for i in 1:maxiter], verbosity)
 end
 
-function UniformGroundStateTimeEvolution(β₀, Δβ, maxiter, tol_energy; verbosity = 0)
-    return GroundStateTimeEvolution(β₀, [Δβ], [1 for i in 1:maxiter], tol_energy, verbosity)
-end
-
 function SquaringTimeEvolution(β₀, maxiter; verbosity = 0)
     return StaticTimeEvolution(β₀, [], 1:maxiter, verbosity)
 end
 
-function SquaringGroundStateTimeEvolution(β₀, maxiter, tol_energy; verbosity = 0)
-    return GroundStateTimeEvolution(β₀, [], 1:maxiter, tol_energy, verbosity)
-end
-
 function TimeDependentTimeEvolution(β₀, Δβ, maxiter; verbosity = 0, f₁ = β -> 1.0, f₂ = β -> 1.0)
     return TimeDependentTimeEvolution(β₀, Δβ, maxiter, verbosity, f₁, f₂)
-end
-
-function UniformGroundStateFillingTimeEvolution(β₀, Δβ, maxiter, f_target; μ₀ = 0.0, α = 1.0e-3, tol_energy = 1.0e-5, verbosity = 0)
-    return GroundStateFillingTimeEvolution(β₀, Δβ, maxiter, f_target, μ₀, α, tol_energy, verbosity)
 end
 
 function evolution_operator(ce_alg::ClusterExpansion, time_alg::TimeDependentTimeEvolution, β::Number; T_conv = ComplexF64, canoc_alg::Union{Nothing, Canonicalization} = nothing)
@@ -174,64 +143,6 @@ function get_time_array(time_alg::StaticTimeEvolution)
     return times[(length(time_alg.βs_helper) + 1):end]
 end
 
-function PEPSKit.fixedpoint(
-        ce_alg::ClusterExpansion,
-        time_alg::GroundStateTimeEvolution,
-        trunc_alg::EnvTruncation,
-        observable;
-        finalize! = nothing,
-        A0 = nothing,
-        canoc_alg::Union{Canonicalization, Nothing} = nothing,
-        skip_first::Bool = false
-    )
-    As = AbstractTensorMap[evolution_operator(ce_alg, β; canoc_alg) for β in time_alg.βs_helper]
-    times = copy(time_alg.βs_helper)
-    if isnothing(A0)
-        A = evolution_operator(ce_alg, time_alg.β₀; canoc_alg)
-    else
-        A = canonicalize(A0, canoc_alg)
-    end
-
-    push!(As, copy(A))
-    push!(times, time_alg.β₀)
-
-    if skip_first
-        expvals = []
-    else
-        expvals = [observable(A)]
-    end
-
-    for (i, ind) in enumerate(time_alg.update_list)
-        A, _ = approximate_state((A, As[ind]), trunc_alg)
-        A /= norm(A)
-        A = canonicalize(A, canoc_alg)
-        obs = observable(A)
-        push!(times, times[end] + times[ind])
-        push!(expvals, obs)
-        push!(As, copy(A))
-        if !isnothing(finalize!)
-            A = finalize!(As, expvals, i)
-        end
-
-        if time_alg.verbosity > 1
-            @info "Time evolution step $(i) with β = $(times[end]), obs = $(obs)"
-            @info "Bond dimension is now $(dim(domain(A)[1]))"
-            if time_alg.verbosity > 2
-                @info "Current norm is $(norm(A))"
-            end
-        end
-        if i > 2 && abs(expvals[end][1] - expvals[end - 1][1]) < time_alg.tol_energy
-            if time_alg.verbosity > 1
-                @info "Ground state search converged after $(i) iterations. Energy is $(expvals[end][1])"
-                return As[end], expvals[end]
-            end
-        end
-    end
-    if time_alg.verbosity > 0
-        @warn "Ground state search did not converge after $(length(time_alg.update_list)) iterations. Energy is $(expvals[end][1])"
-    end
-    return As[end], expvals[end]
-end
 
 function time_scan(
         ce_alg::ClusterExpansion,

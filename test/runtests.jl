@@ -1,9 +1,5 @@
 using SafeTestsets
 
-@time @safetestset "Ground state search" begin
-    include("ground_state_search.jl")
-end
-
 @time @safetestset "Phase transition - Ising model" begin
     include("phase_transition_ising.jl")
 end

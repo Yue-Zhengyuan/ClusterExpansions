@@ -11,22 +11,17 @@ using Zygote, OptimKit
 include("utility/canonical_form.jl")
 include("utility/observables.jl")
 
-include("time_evolution/utility.jl")
-include("time_evolution/local_truncation.jl")
-
 include("models/models.jl")
 
+include("time_evolution/local_truncation.jl")
 include("time_evolution/time_evolve.jl")
-include("models/time_evolve_models.jl")
 
 include("clusterexpansions/generate_trees.jl")
-include("clusterexpansions/generate_loops.jl")
 include("clusterexpansions/clusters.jl")
 include("clusterexpansions/contractions.jl")
 include("clusterexpansions/PEPOs.jl")
 
 include("clusterexpansions/solvers/linearsolvers.jl")
-include("clusterexpansions/solvers/nonlinearsolvers_optimkit.jl")
 include("clusterexpansions/solve_clusters.jl")
 
 export EntanglementFiltering, filter_loop, truncate_loop

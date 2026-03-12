@@ -12,7 +12,6 @@ include("utility/canonical_form.jl")
 include("utility/observables.jl")
 
 include("time_evolution/utility.jl")
-include("time_evolution/global_truncation.jl")
 include("time_evolution/local_truncation.jl")
 include("time_evolution/vomps_utility.jl")
 include("time_evolution/vomps.jl")
@@ -22,8 +21,6 @@ include("models/models_Trotter.jl")
 
 include("time_evolution/time_evolve.jl")
 include("models/time_evolve_models.jl")
-
-include("models/data_generation.jl")
 
 include("clusterexpansions/generate_trees.jl")
 include("clusterexpansions/generate_loops.jl")
@@ -59,9 +56,6 @@ export UniformTimeEvolution, SquaringTimeEvolution
 export UniformGroundStateTimeEvolution, SquaringGroundStateTimeEvolution
 export time_evolve, get_time_array, time_scan
 export time_evolve_model, time_scan_model
-
-export data_generation_SF_CE, data_generation_ising_CE
-export data_generation_SF_SU, data_generation_ising_SU
 
 export clusterexpansion
 

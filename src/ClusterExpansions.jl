@@ -13,8 +13,6 @@ include("utility/observables.jl")
 
 include("time_evolution/utility.jl")
 include("time_evolution/local_truncation.jl")
-include("time_evolution/vomps_utility.jl")
-include("time_evolution/vomps.jl")
 
 include("models/models.jl")
 
@@ -38,7 +36,6 @@ export PEPOObservable, PEPO_observables, localoperator_model, calculate_observab
 
 export fidelity, apply_PEPO_exact
 export NoEnvTruncation
-export VOPEPO_CTMRG, VOPEPO_VUMPS
 export approximate_state
 
 export ClusterExpansion, evolution_operator

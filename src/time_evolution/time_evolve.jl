@@ -102,7 +102,7 @@ end
 function MPSKit.time_evolve(
         ce_alg::ClusterExpansion,
         time_alg::StaticTimeEvolution,
-        trunc_alg::Union{EnvTruncation, VOPEPO},
+        trunc_alg::EnvTruncation,
         observable;
         finalize! = nothing,
         A0 = nothing,
@@ -129,30 +129,13 @@ function MPSKit.time_evolve(
     push!(As, copy(A))
     push!(times, time_alg.β₀)
 
-    if trunc_alg isa VOPEPO
-        env_double, env_triple = initialize_vomps_environments(domain(A)[1], domain(As[time_alg.update_list[1]])[1], trunc_alg)
-    end
     for (i, ind) in enumerate(time_alg.update_list)
-        if trunc_alg isa VOPEPO
-            # if domain(env_triple.edges[1,1,1])[1] ≠ domain(A)[1] ⊗ domain(As[ind])[1] ⊗ trunc_alg.truncspace'
-            if codomain(env_triple.edges[1, 1, 1])[2] ≠ domain(A)[1] || codomain(env_triple.edges[1, 1, 1])[3] ≠ domain(As[ind])[1]
-                env_double, env_triple = initialize_vomps_environments(domain(A)[1], domain(As[ind])[1], trunc_alg)
-            end
-            if ind <= length(As)
-                A, env_double, env_triple, = approximate_state((A, As[ind]), env_double, env_triple, trunc_alg; iter = i, B = initial_guesses(i))
-            elseif ind == i
-                A, env_double, env_triple, = approximate_state((A, A), env_double, env_triple, trunc_alg; iter = i, B = initial_guesses(i))
-            else
-                @error "Cannot perform time evolution without saving intermediaire steps for this time algorithm"
-            end
+        if ind <= length(As)
+            A, _ = approximate_state((A, As[ind]), trunc_alg)
+        elseif ind == i
+            A, _ = approximate_state((A, A), trunc_alg)
         else
-            if ind <= length(As)
-                A, _ = approximate_state((A, As[ind]), trunc_alg)
-            elseif ind == i
-                A, _ = approximate_state((A, A), trunc_alg)
-            else
-                @error "Cannot perform time evolution without saving intermediaire steps for this time algorithm"
-            end
+            @error "Cannot perform time evolution without saving intermediaire steps for this time algorithm"
         end
         if normalizing
             A /= norm(A)
@@ -182,69 +165,6 @@ function MPSKit.time_evolve(
     end
 end
 
-function time_evolve_filling(
-        ce_alg::F,
-        time_alg::GroundStateFillingTimeEvolution,
-        trunc_alg::Union{EnvTruncation, VOPEPO},
-        observable;
-        finalize! = nothing,
-        canoc_alg::Union{Canonicalization, Nothing} = nothing,
-        initial_guesses = i -> nothing,
-        check_energy::Bool = false
-    ) where {F <: Function}
-    @assert !(trunc_alg isa VOPEPO) "VOPEPO not implemented for filling control"
-    A = evolution_operator(ce_alg(time_alg.μ₀), time_alg.β₀; canoc_alg)
-    As = AbstractTensorMap[A]
-    μs = Float64[time_alg.μ₀]
-    times = Float64[0.0]
-
-    expvals = [observable(A)]
-    μ = time_alg.μ₀
-
-    if trunc_alg isa VOPEPO
-        env_double, env_triple = initialize_vomps_environments(domain(A)[1], domain(As[time_alg.update_list[1]])[1], trunc_alg) # this will give errors due to time_alg.update_list
-    end
-    for i in 1:time_alg.maxiter
-        μ -= real((expvals[end][1] - time_alg.f_target) * time_alg.α)
-        println("μ = $(μ), n = $(expvals[end][1])")
-        if trunc_alg isa VOPEPO
-            if codomain(env_triple.edges[1, 1, 1])[2] ≠ domain(A)[1] || codomain(env_triple.edges[1, 1, 1])[3] ≠ domain(As[ind])[1]
-                env_double, env_triple = initialize_vomps_environments(domain(A)[1], domain(As[ind])[1], trunc_alg)
-            end
-            A, env_double, _ = approximate_state((A, As[ind]), env_double, env_triple, trunc_alg; iter = i, B = initial_guesses(i))
-        else
-            A, _ = approximate_state((A, evolution_operator(ce_alg(μ), time_alg.Δβ)), trunc_alg)
-        end
-        A /= norm(A)
-        A = canonicalize(A, canoc_alg)
-        obs = observable(A)
-        push!(times, times[end] + time_alg.Δβ)
-        push!(expvals, obs)
-        push!(As, copy(A))
-        push!(μs, copy(μ))
-        if time_alg.verbosity > 1
-            @info "Time evolution step $(i) with β = $(times[end]), μ = $(μ) obs = $(obs)"
-            @info "Bond dimension is now $(dim(domain(A)[1]))"
-            if time_alg.verbosity > 2
-                @info "Current norm is $(norm(A))"
-            end
-        end
-        if !isnothing(finalize!)
-            A = finalize!(As, expvals, i)
-        end
-        if check_energy && i > 2 && abs(expvals[end][2] - expvals[end - 1][2]) < time_alg.tol_energy
-            if time_alg.verbosity > 1
-                @info "Ground state search converged after $(i) iterations. Energy is $(expvals[end][1])"
-                return times, expvals, μs, As
-            end
-        end
-    end
-    if time_alg.verbosity > 0
-        @warn "Ground state search did not converge after $(maxiter) iterations. Energy is $(expvals[end][1])"
-    end
-    return times, expvals, μs, As
-end
-
 function get_time_array(time_alg::StaticTimeEvolution)
     times = copy(time_alg.βs_helper)
     push!(times, time_alg.β₀)
@@ -257,7 +177,7 @@ end
 function PEPSKit.fixedpoint(
         ce_alg::ClusterExpansion,
         time_alg::GroundStateTimeEvolution,
-        trunc_alg::Union{EnvTruncation, VOPEPO},
+        trunc_alg::EnvTruncation,
         observable;
         finalize! = nothing,
         A0 = nothing,
@@ -281,18 +201,8 @@ function PEPSKit.fixedpoint(
         expvals = [observable(A)]
     end
 
-    if trunc_alg isa VOPEPO
-        env_double, env_triple = initialize_vomps_environments(domain(A)[1], domain(As[time_alg.update_list[1]])[1], trunc_alg)
-    end
     for (i, ind) in enumerate(time_alg.update_list)
-        if trunc_alg isa VOPEPO
-            if domain(env_triple.edges[1, 1, 1])[1][1] ≠ domain(A)[1] || domain(env_triple.edges[1, 1, 1])[1][2] ≠ domain(As[ind])[1]
-                env_double, env_triple = initialize_vomps_environments(domain(A)[1], domain(As[ind])[1], trunc_alg)
-            end
-            A, env_double, env_triple, _ = approximate_state((A, As[ind]), env_double, env_triple, trunc_alg; iter = i)
-        else
-            A, _ = approximate_state((A, As[ind]), trunc_alg)
-        end
+        A, _ = approximate_state((A, As[ind]), trunc_alg)
         A /= norm(A)
         A = canonicalize(A, canoc_alg)
         obs = observable(A)

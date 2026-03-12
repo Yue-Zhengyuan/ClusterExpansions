@@ -21,52 +21,29 @@ function solve_4_loop_optim(RHS, spaces, levels_to_update; verbosity = 1, gradto
 
     opt_alg = LBFGS(; maxiter = 500, gradtol = gradtol, verbosity)
 
-    if isnothing(symmetry)
-        A_NW = randn(T, pspace ⊗ pspace', trivspace ⊗ vspace ⊗ vspace' ⊗ trivspace')
-        A_NE = randn(T, pspace ⊗ pspace', trivspace ⊗ trivspace ⊗ vspace' ⊗ vspace')
-        A_SE = randn(T, pspace ⊗ pspace', vspace ⊗ trivspace ⊗ trivspace' ⊗ vspace')
-        A_SW = randn(T, pspace ⊗ pspace', vspace ⊗ vspace ⊗ trivspace' ⊗ trivspace')
-        A_NW *= norm(RHS)^(1 / 4) / norm(A_NW)
-        A_NE *= norm(RHS)^(1 / 4) / norm(A_NE)
-        A_SE *= norm(RHS)^(1 / 4) / norm(A_SE)
-        A_SW *= norm(RHS)^(1 / 4) / norm(A_SW)
-        As = [A_NW, A_NE, A_SE, A_SW]
+    A_NW = randn(T, pspace ⊗ pspace', trivspace ⊗ vspace ⊗ vspace' ⊗ trivspace')
+    A_NE = randn(T, pspace ⊗ pspace', trivspace ⊗ trivspace ⊗ vspace' ⊗ vspace')
+    A_SE = randn(T, pspace ⊗ pspace', vspace ⊗ trivspace ⊗ trivspace' ⊗ vspace')
+    A_SW = randn(T, pspace ⊗ pspace', vspace ⊗ vspace ⊗ trivspace' ⊗ trivspace')
+    A_NW *= norm(RHS)^(1 / 4) / norm(A_NW)
+    A_NE *= norm(RHS)^(1 / 4) / norm(A_NE)
+    A_SE *= norm(RHS)^(1 / 4) / norm(A_SE)
+    A_SW *= norm(RHS)^(1 / 4) / norm(A_SW)
+    As = [A_NW, A_NE, A_SE, A_SW]
 
-        custom_costfun = ψ -> check_loop(ψ, RHS, spaces)
+    custom_costfun = ψ -> check_loop(ψ, RHS, spaces)
 
-        # optimize free energy per site
-        As_final, f, = optimize(
-            As,
-            opt_alg;
-            inner = PEPSKit.real_inner,
-        ) do psi
-            E, gs = withgradient(psi) do ψ
-                return custom_costfun(ψ)
-            end
-            g = only(gs)
-            return E, g
+    # optimize free energy per site
+    As_final, f, = optimize(
+        As,
+        opt_alg;
+        inner = PEPSKit.real_inner,
+    ) do psi
+        E, gs = withgradient(psi) do ψ
+            return custom_costfun(ψ)
         end
-    elseif symmetry == "C4"
-        A = randn(T, pspace ⊗ pspace', trivspace ⊗ vspace ⊗ vspace' ⊗ trivspace')
-        A *= norm(RHS)^(1 / 4) / norm(A)
-
-        custom_costfun = ψ -> check_loop(construct_PEPO_loop(ψ), RHS, spaces)
-
-        # optimize free energy per site
-        A_final, f, = optimize(
-            A,
-            opt_alg;
-            inner = PEPSKit.real_inner,
-        ) do psi
-            E, gs = withgradient(psi) do ψ
-                return custom_costfun(ψ)
-            end
-            g = only(gs)
-            return E, g
-        end
-        As_final = construct_PEPO_loop(A_final)
-    else
-        @error "Symmetry $(symmetry) not implemented"
+        g = only(gs)
+        return E, g
     end
 
     dict = Dict((0, -1, -1, 0) => 1, (0, 0, -1, -1) => 2, (-1, 0, 0, -1) => 3, (-1, -1, 0, 0) => 4)

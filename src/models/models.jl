@@ -6,7 +6,6 @@ struct ClusterExpansion
     verbosity
     T
     spaces
-    symmetry
     solving_loops
     svd
     envspace

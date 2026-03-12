@@ -17,7 +17,7 @@ max_beta = 1.0
 maxiter = ceil(Int, (max_beta - β₀) / Δβ)
 time_alg_CE = UniformTimeEvolution(β₀, Δβ, maxiter; verbosity = 2)
 
-ce_alg = ising_operators(1.0, g, 0.0; T = Float64, symmetry = "C4")
+ce_alg = ising_operators(1.0, g, 0.0; T = Float64)
 t_alg = ising_operators_Trotter(1.0, g, 0.0; T = Float64)
 
 # Define observables

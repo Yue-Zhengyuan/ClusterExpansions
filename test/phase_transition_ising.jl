@@ -29,7 +29,7 @@ obs_function = (O, i) -> ClusterExpansions.calculate_observables(O, χenv, obss)
 # @testset "Classical Ising model" begin
 #     # Set up the classical Ising model
 #     (J, g, z) = (1.0, 0.0, 0.0)
-#     ce_alg = ising_operators(J, g, z; T = ComplexF64, symmetry = "C4")
+#     ce_alg = ising_operators(J, g, z; T = ComplexF64)
 
 #     # Perform the time evolution.
 #     βs, expvals, Os = time_evolve(ce_alg, time_alg, trunc_alg, obs_function)
@@ -50,7 +50,7 @@ obs_function = (O, i) -> ClusterExpansions.calculate_observables(O, χenv, obss)
 
 # Set up the classical Ising model
 (J, g, z) = (1.0, 2.5, 0.0)
-ce_alg = ising_operators(J, g, z; T = Float64, )
+ce_alg = ising_operators(J, g, z; T = Float64)
 
 # Perform the time evolution.
 βs, expvals, Os = time_evolve(ce_alg, time_alg, trunc_alg, obs_function)

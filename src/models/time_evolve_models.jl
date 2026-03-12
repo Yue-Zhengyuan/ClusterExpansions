@@ -95,19 +95,3 @@ function time_evolve_model(model, param, time_alg, χenv, trscheme, trscheme_par
     times, expvals, As = time_evolve(ce_alg, time_alg, trunc_alg, obs_function; A0, finalize!)
     return times, expvals, As
 end
-
-function time_scan_model(model, param, times, χenv; ce_kwargs = (), observables = [], verbosity_time = 0, verbosity_ctm = 0, convert_symm = false)
-    ce_alg = model(param...; ce_kwargs...)
-    envspace = ce_alg.envspace(χenv)
-
-    ctm_alg = SimultaneousCTMRG(;
-        tol = 1.0e-10,
-        miniter = 4,
-        maxiter = 500,
-        verbosity = verbosity_ctm,
-        svd_alg = SVDAdjoint(; fwd_alg = TensorKit.SVD(), rrule_alg = GMRES(; tol = 1.0e-10))
-    )
-    obs_function = O -> [observable_time_evolve(O, obs, envspace, ctm_alg; convert_symm) for obs in observables]
-
-    return time_scan(ce_alg, times, obs_function; verbosity_time)
-end

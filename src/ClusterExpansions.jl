@@ -47,8 +47,7 @@ export tJ_operators, hubbard_operators
 export evolution_operator
 export StaticTimeEvolution, TimeDependentTimeEvolution
 export UniformTimeEvolution, SquaringTimeEvolution
-export time_evolve, get_time_array, time_scan
-export time_evolve_model, time_scan_model
+export time_evolve, time_evolve_model
 
 export clusterexpansion
 

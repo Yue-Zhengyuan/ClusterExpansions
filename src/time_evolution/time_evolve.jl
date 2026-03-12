@@ -1,13 +1,5 @@
 abstract type TimeEvolution end
 
-# struct StaticTimeEvolution <: TimeEvolution
-#     β₀
-#     Δβ
-#     maxiter
-#     trunc_alg
-#     verbosity
-# end
-
 struct TimeDependentTimeEvolution <: TimeEvolution
     β₀
     Δβ
@@ -132,43 +124,4 @@ function MPSKit.time_evolve(
     else
         return times[end], obs, A
     end
-end
-
-function get_time_array(time_alg::StaticTimeEvolution)
-    times = copy(time_alg.βs_helper)
-    push!(times, time_alg.β₀)
-    for ind in time_alg.update_list
-        push!(times, times[end] + times[ind])
-    end
-    return times[(length(time_alg.βs_helper) + 1):end]
-end
-
-
-function time_scan(
-        ce_alg::ClusterExpansion,
-        times::Array,
-        observable;
-        verbosity::Int = 0,
-        finalize! = nothing
-    )
-    expvals = []
-    As = []
-    for (i, t) in enumerate(times)
-        A = evolution_operator(ce_alg, t)
-        obs = observable(A)
-
-        push!(expvals, obs)
-        push!(As, copy(A))
-
-        if verbosity > 1
-            @info "Time evolution step $(i) with β = $(t), obs = $(obs)"
-            if verbosity > 2
-                @info "Current norm is $(norm(A))"
-            end
-        end
-        if !isnothing(finalize!)
-            finalize!(A, obs, i)
-        end
-    end
-    return times, expvals, As
 end

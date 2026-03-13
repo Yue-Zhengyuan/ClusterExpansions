@@ -157,23 +157,6 @@ function get_directed_graph(bonds_indices)
     return SimpleDiGraph(Graphs.SimpleEdge.(bonds_bi))
 end
 
-function get_branch(site1, site2, bonds)
-    branch = [site1, site2]
-    edge_bond = site2
-    prev_bond = site1
-    surroundings = [setdiff(bond, edge_bond)[1] for bond in bonds if ((edge_bond ∈ bond) && !(prev_bond ∈ bond))]
-    while length(surroundings) != 0
-        if length(surroundings) > 1
-            error("Multiple branches - currently not implemented")
-        end
-        push!(branch, surroundings[1])
-        prev_bond = site2
-        edge_bond = surroundings[1]
-        surroundings = [setdiff(bond, edge_bond)[1] for bond in bonds if ((edge_bond ∈ bond) && !(prev_bond ∈ bond))]
-    end
-    return branch
-end
-
 function get_longest_path(g_dir, N)
     longest_path_graph, n = find_longest_path(g_dir, N)
     longest_path = vcat([longest_path_graph[1].src], [l.dst for l in longest_path_graph])
@@ -194,62 +177,6 @@ function find_longest_path(g, N)
         end
     end
     return a_star(g, start_edge, end_edge[1]), max_dist + 1
-end
-
-# check whether 2 cycles (Tuples of length 4) have common indices
-function check_connectedness(cycle₁, cycle₂)
-    return sum([e ∈ cycle₂ for e in cycle₁]) == 2
-end
-
-function get_longest_cycle(g_dir)
-    @error "Don't use this"
-    cycles = cycle_basis(g_dir)
-    length(cycles) == 0 && return (nothing, 0)
-    length(cycles) == 1 && return (cycles[1], 1)
-    length(cycles) >= 2 && return (cycles, 2)
-    edges = Vector{Int}()
-    for (i, cyc1) in enumerate(cycles)
-        for (j, cyc2) in enumerate(cycles[i:end])
-            if check_connectedness(cyc1, cyc2)
-                push!(edges, (i, j))
-                push!(edges, (j, i))
-            end
-        end
-    end
-
-    g_dir_cycles = SimpleDiGraph(Graphs.SimpleEdge.(edges))
-    longest_cycle_graph, m = find_longest_path(g_dir_cycles, length(edges))
-    longest_cycle = vcat([longest_cycle_graph[1].src], [l.dst for l in longest_cycle_graph])
-    return longest_cycle, m
-end
-
-# Get the levels of a line of size n without branches
-function get_levels_line(n)
-    return Int.([(n + 1) / 2 - abs((n + 1) / 2 - i) for i in 1:n])
-end
-
-function get_levels(lp, n, bonds_indices, coo)
-    levels_line = get_levels_line(n - 1)
-    levels_dict = Dict()
-    for i in 1:(n - 1)
-        indices = [lp[i], lp[i + 1]]
-        levels_dict[Tuple(sort(indices))] = levels_line[i]
-    end
-
-    for (ind, site) in enumerate(lp)
-        if coo[site] > 2
-            start_branches = [setdiff(bond, site)[1] for bond in bonds_indices if ((site ∈ bond) && !(lp[ind - 1] ∈ bond) && !(lp[ind + 1] ∈ bond))]
-            for start_branch in start_branches
-                branch = get_branch(site, start_branch, bonds_indices)
-                n = length(branch)
-                for i in 1:(n - 1)
-                    indices = [branch[i], branch[i + 1]]
-                    levels_dict[Tuple(sort(indices))] = n - i
-                end
-            end
-        end
-    end
-    return [levels_dict[bond] for bond in bonds_indices]
 end
 
 function get_levels_sites(bonds_sites, bonds_indices, levels, N)

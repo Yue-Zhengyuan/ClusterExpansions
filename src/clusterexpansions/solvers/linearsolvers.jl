@@ -14,26 +14,6 @@ function get_graph(cluster)
     return graph
 end
 
-function apply_A_N_2(A, x, ::Val{false})
-    @tensor Ax[-1 -2 -3 -4 -5; -6] := A[1; -1 -2 -4 -5 -3] * x[-6; 1]
-    return Ax
-end
-
-function apply_A_N_2(x1, y::Val{true})
-    @tensor x2_new[-1 -2; -3 -4 -5 -6] := conj(y[1; -6]) * x1[-1 -2; -5 1 -3 -4] * conj(I[-4; 2])
-    return flip(x2_new, 4)
-end
-
-function get_twists(dir)
-    if dir == (3, 1) || dir == (4, 2)
-        return [1 2 4]
-    elseif dir == (1, 3) || dir == (2, 4)
-        return [1 4 5]
-    else
-        @error "Unexpected value for dir"
-    end
-end
-
 function get_A(T, cluster, PEPO, sites_to_update)
     updates = length(sites_to_update)
     fixed_tensors = cluster.N - updates
@@ -123,24 +103,6 @@ function apply_A_onesite(A, Ax::TensorMap, sites_to_update, N, ::Val{true})
     return x
 end
 
-function apply_A_twosite(A, x::TensorMap, N, dir, ::Val{false})
-    Ax = ncon([A, x], [hcat(transpose(-1:-1:(-2 * N + 4)), [1 2 3 4 5 6]), [1 2 3 4 5 6 -2 * N + 3 -2 * N + 2 -2 * N + 1 -2 * N]])
-    len = length(domain(Ax)) + length(codomain(Ax))
-    Ax = permute(Ax, (Tuple(1:(len - 4)), Tuple((len - 3):len)))
-    return Ax
-end
-
-function apply_A_twosite(A, Ax::TensorMap, N, dir, ::Val{true})
-
-    Ax′ = twist(Ax, (N - 1):(2 * N - 4))
-
-    x = ncon([A, Ax′], [hcat(transpose(1:(2 * N - 4)), [-1 -2 -3 -4 -5 -6]), hcat(transpose(1:(2 * N - 4)), [-7 -8 -9 -10])], [true false])
-
-    x = twist(x, get_twists(dir))
-    x = permute(x, ((1, 2, 3, 4, 5, 6), (7, 8, 9, 10)))
-    return x
-end
-
 function permute_dir(x, dir, second)
     tup = zeros(Int, 4)
     tup[dir] = 6 - 5 * second
@@ -152,20 +114,6 @@ function permute_dir(x, dir, second)
         end
     end
     return permute(x, ((1, 2) .+ second, (Tuple(tup))))
-end
-
-function eig_with_truncation(x, space)
-    T = scalartype(x)
-    D = dim(space)
-    eigval, eigvec = eig(x)
-    if space == domain(eigval)[1]
-        return eigval, eigvec
-    end
-    eigval_trunc = zeros(T, space, space)
-    eigvec_trunc = zeros(T, codomain(x), space)
-    eigval_trunc[] = eigval[][1:D, 1:D]
-    eigvec_trunc[] = eigvec[][:, :, :, :, :, 1:D]
-    return eigval_trunc, eigvec_trunc
 end
 
 function solve_index(T, A, exp_H, conjugated, sites_to_update, levels_to_update, dir, N, spaces; verbosity = 2, svd = true)

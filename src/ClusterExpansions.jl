@@ -8,7 +8,6 @@ using PEPSKit
 using Graphs
 using Zygote, OptimKit
 
-include("utility/canonical_form.jl")
 include("utility/observables.jl")
 
 include("models/models.jl")
@@ -26,7 +25,6 @@ include("clusterexpansions/solve_clusters.jl")
 
 export EntanglementFiltering, filter_loop, truncate_loop
 
-export Canonicalization, canonicalize
 export PEPOObservable, PEPO_observables, localoperator_model, calculate_observables
 
 export fidelity, apply_PEPO_exact

@@ -15,7 +15,7 @@ function UniformTimeEvolution(β₀, Δβ, maxiter; verbosity = 0)
     return StaticTimeEvolution(β₀, [Δβ], [1 for i in 1:maxiter], verbosity)
 end
 
-function evolution_operator(ce_alg::ClusterExpansion, β::Number; T_conv = ComplexF64, canoc_alg::Union{Nothing, Canonicalization} = nothing)
+function evolution_operator(ce_alg::ClusterExpansion, β::Number; T_conv = ComplexF64)
     if β == 0.0
         pspace = domain(ce_alg.onesite_op)[1]
         vspace = ce_alg.spaces(0)
@@ -24,9 +24,8 @@ function evolution_operator(ce_alg::ClusterExpansion, β::Number; T_conv = Compl
     end
     _, O_clust_full = clusterexpansion(ce_alg.T, ce_alg.p, β, ce_alg.twosite_op, ce_alg.onesite_op; nn_term = ce_alg.nn_term, spaces = ce_alg.spaces, verbosity = ce_alg.verbosity, solving_loops = ce_alg.solving_loops, svd = ce_alg.svd)
     O_clust_full = convert(TensorMap, O_clust_full)
-    O_canoc = canonicalize(O_clust_full, canoc_alg)
-    O = zeros(T_conv, codomain(O_canoc), domain(O_canoc))
-    for (f_full, f_conv) in zip(blocks(O_canoc), blocks(O))
+    O = zeros(T_conv, codomain(O_clust_full), domain(O_clust_full))
+    for (f_full, f_conv) in zip(blocks(O_clust_full), blocks(O))
         f_conv[2] .= f_full[2]
     end
     return O # Don't normalize, otherwise Atsushi will be mad.
@@ -39,18 +38,17 @@ function MPSKit.time_evolve(
         observable;
         finalize! = nothing,
         A0 = nothing,
-        canoc_alg::Union{Canonicalization, Nothing} = nothing,
         skip_first::Bool = false,
         initial_guesses = i -> nothing,
         saving::Bool = true,
         normalizing::Bool = true
     )
-    As = AbstractTensorMap[evolution_operator(ce_alg, β; canoc_alg) for β in time_alg.βs_helper]
+    As = AbstractTensorMap[evolution_operator(ce_alg, β) for β in time_alg.βs_helper]
     times = copy(time_alg.βs_helper)
     if isnothing(A0)
-        A = evolution_operator(ce_alg, time_alg.β₀; canoc_alg)
+        A = evolution_operator(ce_alg, time_alg.β₀)
     else
-        A = canonicalize(A0, canoc_alg)
+        A = A0
     end
     if skip_first
         obs = nothing
@@ -73,7 +71,6 @@ function MPSKit.time_evolve(
         if normalizing
             A /= norm(A)
         end
-        A = canonicalize(A, canoc_alg)
         obs = observable(A, i)
         push!(times, times[end] + times[ind])
         if saving

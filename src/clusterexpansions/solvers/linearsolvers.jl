@@ -186,7 +186,7 @@ function solve_index(T, A, exp_H, conjugated, sites_to_update, levels_to_update,
     end
     if length(sites_to_update) == 2
         if svd
-            U, Σ, V = tsvd(x, trunc = truncspace(spaces(levels_to_update[1][dir[1]])))
+            U, Σ, V = svd_trunc(x, trunc = truncspace(spaces(levels_to_update[1][dir[1]])))
             x1 = U * sqrt(Σ)
             x2 = sqrt(Σ) * V
             if norm(x - x1 * x2) / norm(x) > eps(real(T)) * 1.0e2 && verbosity > 0

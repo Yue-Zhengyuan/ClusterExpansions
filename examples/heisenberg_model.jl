@@ -18,7 +18,7 @@ model_param = (Jx, Jy, Jz, z)
 
 # Parameters in the truncation scheme
 Dcut = 4
-trunc_alg = NoEnvTruncation(truncdim(Dcut))
+trunc_alg = NoEnvTruncation(truncrank(Dcut))
 
 # Set up time evolution algorithm
 β₀ = 1.0e-1

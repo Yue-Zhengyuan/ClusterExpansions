@@ -2,7 +2,7 @@ module ClusterExpansions
 
 using TensorKit, TensorKitTensors
 using KrylovKit
-using BlockTensorKit: ⊕, SumSpace
+using BlockTensorKit: ⊞, SumSpace
 using MPSKit
 using PEPSKit
 using Graphs

@@ -1,16 +1,16 @@
 abstract type EnvTruncation end
 
 struct NoEnvTruncation <: EnvTruncation
-    trscheme::TruncationScheme
+    trunc::TruncationStrategy
     check_fidelity::Bool
     verbosity::Int
 end
 
 function NoEnvTruncation(
-        trscheme::TruncationScheme;
+        trunc::TruncationStrategy;
         check_fidelity::Bool = false, verbosity::Int = 0
     )
-    return NoEnvTruncation(trscheme, check_fidelity, verbosity)
+    return NoEnvTruncation(trunc, check_fidelity, verbosity)
 end
 
 # QR decomposition
@@ -81,8 +81,8 @@ function approximate_state(
         A::Tuple{AbstractTensorMap{E, S, 2, 4}, AbstractTensorMap{E, S, 2, 4}},
         trunc_alg::NoEnvTruncation
     ) where {E, S <: ElementarySpace}
-    PN, PS = find_P1P2(A[1], A[2], 3, 5, trunc_alg.trscheme)
-    PE, PW = find_P1P2(A[1], A[2], 4, 6, trunc_alg.trscheme)
+    PN, PS = find_P1P2(A[1], A[2], 3, 5, trunc_alg.trunc)
+    PE, PW = find_P1P2(A[1], A[2], 4, 6, trunc_alg.trunc)
     @tensor opt = true Onew[-1 -2; -3 -4 -5 -6] := A[1][1 -2; 7 8 9 10] * A[2][-1 1; 3 4 5 6] * PN[3 7; -3] * PE[4 8; -4] * PS[-5; 5 9] * PW[-6; 6 10]
     return Onew, nothing
 end

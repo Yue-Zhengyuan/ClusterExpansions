@@ -1,6 +1,7 @@
 module ClusterExpansions
 
 using TensorKit
+using MatrixAlgebraKit: TruncationStrategy
 using KrylovKit
 using BlockTensorKit: ⊞, SumSpace
 using MPSKit

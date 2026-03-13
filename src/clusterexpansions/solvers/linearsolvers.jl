@@ -91,10 +91,6 @@ function apply_A_onesite(A, x::TensorMap, sites_to_update, N, ::Val{false})
 end
 
 function apply_A_onesite(A, Ax::TensorMap, sites_to_update, N, ::Val{true})
-    # f = x -> apply_A_onesite(A, x, sites_to_update, N, Val(true))
-    # _, g = Zygote.pullback(f)
-    # return g(Ax)
-
     Ax′ = twist(Ax, N:(2 * N - 2))
     x = ncon([A, Ax′], [hcat(transpose(1:(2 * N - 2)), [-1 -2 -3 -4]), hcat(transpose(1:(2 * N - 2)), [-5 -6])], [true false])
 

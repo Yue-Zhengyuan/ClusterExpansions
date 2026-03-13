@@ -1,12 +1,11 @@
 module ClusterExpansions
 
-using TensorKit, TensorKitTensors
+using TensorKit
 using KrylovKit
 using BlockTensorKit: ⊞, SumSpace
 using MPSKit
 using PEPSKit
 using Graphs
-using Zygote, OptimKit
 
 include("utility/observables.jl")
 

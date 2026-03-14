@@ -1,6 +1,7 @@
 module ClusterExpansions
 
 using TensorKit
+using TensorKitTensors
 using MatrixAlgebraKit: TruncationStrategy
 using KrylovKit
 using BlockTensorKit: ⊞, SumSpace
@@ -12,7 +13,6 @@ include("utility/observables.jl")
 
 include("models/models.jl")
 
-include("time_evolution/local_truncation.jl")
 include("time_evolution/time_evolve.jl")
 
 include("clusterexpansions/generate_trees.jl")
@@ -28,8 +28,6 @@ export EntanglementFiltering, filter_loop, truncate_loop
 export PEPOObservable, PEPO_observables, localoperator_model, calculate_observables
 
 export fidelity, apply_PEPO_exact
-export NoEnvTruncation
-export approximate_state
 
 export ClusterExpansion, evolution_operator
 export ising_operators

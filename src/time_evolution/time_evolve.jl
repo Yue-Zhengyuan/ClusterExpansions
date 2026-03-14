@@ -34,7 +34,7 @@ end
 function MPSKit.time_evolve(
         ce_alg::ClusterExpansion,
         time_alg::StaticTimeEvolution,
-        trunc_alg::EnvTruncation,
+        trunc_alg::LocalApprox,
         observable;
         finalize! = nothing,
         A0 = nothing,
@@ -62,9 +62,11 @@ function MPSKit.time_evolve(
 
     for (i, ind) in enumerate(time_alg.update_list)
         if ind <= length(As)
-            A, _ = approximate_state((A, As[ind]), trunc_alg)
+            op1, op2 = InfinitePEPO(A), InfinitePEPO(As[ind])
+            A = only(approximate(op1, op2, trunc_alg).A)
         elseif ind == i
-            A, _ = approximate_state((A, A), trunc_alg)
+            op = InfinitePEPO(A)
+            A = only(approximate(op, op, trunc_alg).A)
         else
             @error "Cannot perform time evolution without saving intermediaire steps for this time algorithm"
         end

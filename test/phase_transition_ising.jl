@@ -37,7 +37,6 @@ end
     # get PEPO for exp(-H Δβ)
     ρ0 = InfinitePEPO(evolution_operator(ce_alg, Δβ))
     ρ = deepcopy(ρ0)
-    env = CTMRGEnv(randn, ComplexF64, InfinitePartitionFunction(ρ), χenv)
 
     # observables
     σx = SpinOperators.σˣ()

@@ -49,7 +49,7 @@ function evolution_operator(ce_alg::ClusterExpansion, β::Number; T_conv = Compl
         t = id(T_conv, pspace ⊗ vspace ⊗ vspace)
         return permute(t, ((1, 4), (5, 6, 2, 3)))
     end
-    _, O_clust_full = clusterexpansion(ce_alg.T, ce_alg.p, β, ce_alg.twosite_op, ce_alg.onesite_op; nn_term = ce_alg.nn_term, spaces = ce_alg.spaces, verbosity = ce_alg.verbosity, solving_loops = ce_alg.solving_loops, svd = ce_alg.svd)
+    _, O_clust_full = clusterexpansion(ce_alg.T, ce_alg.p, β, ce_alg.twosite_op, ce_alg.onesite_op; spaces = ce_alg.spaces, verbosity = ce_alg.verbosity, solving_loops = ce_alg.solving_loops, svd = ce_alg.svd)
     O_clust_full = convert(TensorMap, O_clust_full)
     O = zeros(T_conv, codomain(O_clust_full), domain(O_clust_full))
     for (f_full, f_conv) in zip(blocks(O_clust_full), blocks(O))

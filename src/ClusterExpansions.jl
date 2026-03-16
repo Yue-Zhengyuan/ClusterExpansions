@@ -1,13 +1,15 @@
 module ClusterExpansions
 
 using TensorKit
-using TensorKitTensors
 using MatrixAlgebraKit: TruncationStrategy
 using KrylovKit
 using BlockTensorKit: ⊞, SumSpace
 using MPSKit
 using PEPSKit
 using Graphs
+
+import TensorKitTensors.SpinOperators as SO
+import TensorKitTensors.FermionOperators as FO
 
 include("models/models.jl")
 

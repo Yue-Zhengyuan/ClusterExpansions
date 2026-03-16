@@ -1,6 +1,7 @@
 Manifest.toml
 .DS_Store
-.vscode/launch.json
+.vscode/*
+!.vscode/tasks.json
 deprecated
 data
 *.cov

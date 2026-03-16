@@ -12,7 +12,7 @@ function init_PEPO(T, β, onesite_op::AbstractTensorMap, trivspace)
 end
 
 function get_sum_space(highest, highest_loop, spaces)
-    summedspace = ⊞([spaces(i) for i in 0:highest]...)
+    summedspace = ⊞((spaces(i) for i in 0:highest)...)
     # zerospace = ℂ^0
     # total_space = zerospace
     for ind in -1:-1:highest_loop

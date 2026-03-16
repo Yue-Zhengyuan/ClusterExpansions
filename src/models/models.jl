@@ -11,13 +11,6 @@ struct ClusterExpansion
     envspace
 end
 
-_envspace(::ComplexSpace) = χ -> ℂ^χ
-_envspace(::GradedSpace{ZNIrrep{N}, NTuple{N, Int}}) where {N} = χ -> ZNSpace{N}(0 => χ - (N - 1) * div(χ, N), [i => div(χ, N) for i in 1:(N - 1)]...)
-_envspace(::GradedSpace{U1Irrep, TensorKit.SortedVectorDict{U1Irrep, Int64}}) = χ -> Vect[U1Irrep](0 => χ - 2 * div(χ, 4), 1 => div(χ, 4), -1 => div(χ, 4))
-_envspace(::GradedSpace{SU2Irrep, TensorKit.SortedVectorDict{SU2Irrep, Int64}}) = χ -> Vect[SU2Irrep](0 => χ - 2 * div(χ, 4), 1 // 2 => div(χ, 4), 1 => div(χ, 4))
-_envspace(::GradedSpace{FermionParity, Tuple{Int64, Int64}}) = χ -> Vect[FermionParity](0 => χ - div(χ, 2), 1 => div(χ, 2))
-_envspace(space::GradedSpace{ProductSector{T}, T2}) where {T <: Tuple, T2} = χ -> Vect[sectortype(space)](ntuple(_ -> 0, fieldcount(T)) => χ)
-
 function ClusterExpansion(twosite_op, onesite_op; nn_term = nothing, p = 3, verbosity = 0, T = ComplexF64, spaces = i -> (i >= 0) ? ℂ^(2^(i)) : ℂ^10, solving_loops = true, svd = true, envspace = χ -> ℂ^χ)
     return ClusterExpansion(twosite_op, onesite_op, nn_term, p, verbosity, T, spaces, solving_loops, svd, envspace)
 end

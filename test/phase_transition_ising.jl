@@ -1,70 +1,76 @@
 using Test
 using TensorKit
 using TensorKitTensors
-using MPSKit
 using ClusterExpansions
 using PEPSKit
-using Plots
 using Random
 
 Random.seed!(1654841489)
 
 # Set up time evolution algorithm
-β₀ = 0.1
 Δβ = 0.1
-maxiter = 8
-time_alg = UniformTimeEvolution(β₀, Δβ, maxiter; verbosity = 0)
+maxiter = 10
 
-χenv = 8 # Environment bond dimension used in the calculation of expectation values
-
-# Set up truncation algorithm
-Dcut = 4
+# Set up PEPO truncation algorithm
+Dcut = 5
 trunc_alg = LocalApprox(truncrank(Dcut))
 
-# Define observables
-vumps_alg = VUMPS(; maxiter = 100, verbosity = 0)
-obss = PEPO_observables([:spectrum, SpinOperators.σᶻ(), SpinOperators.σˣ()], vumps_alg)
-obs_function = (O, i) -> ClusterExpansions.calculate_observables(O, χenv, obss)
+gs = [2.5, 0.0]
+Tcs = [1.2737, 2 / (log(1 + sqrt(2)))]
 
-@testset "Classical Ising model" begin
-    # Set up the classical Ising model
-    (J, g, z) = (1.0, 0.0, 0.0)
-    ce_alg = ising_operators(J, g, z; T = ComplexF64)
-
-    # Perform the time evolution.
-    βs, expvals, Os = time_evolve(ce_alg, time_alg, trunc_alg, obs_function)
-
-    # Extract the expectation values
-    ξs = [e[1][1] for e in expvals]
-    mzs = [e[2] for e in expvals]
-    mxs = [e[3] for e in expvals]
-
-    # Critical temperature for the classical Ising model
-    Tc = 2 / (log(1 + sqrt(2)))
-    βc = 1 / Tc
-
-    # Tests on the phase transition of the classical Ising model
-    @test norm(mxs) < 1.0e-14
-    @test all([((β < βc) && (abs(mz) < 0.5)) || ((β > βc) && (abs(mz) > 0.5)) for (β, mz) in zip(βs, mzs)])
+function converge_ctmenv(ρ::InfinitePEPO)
+    pf = InfinitePartitionFunction(ρ)
+    env = CTMRGEnv(ones, ComplexF64, InfinitePartitionFunction(ρ), ℂ^1)
+    for (χ, verbosity) in zip([1, 5, 15], [0, 0, 2])
+        trunc = truncrank(χ)
+        ctm_alg = SequentialCTMRG(; verbosity, trunc, projector_alg = :fullinfinite)
+        env, = leading_boundary(env, pf, ctm_alg)
+    end
+    return env
 end
 
-@testset "Quantum Ising model" begin
-    # Set up the classical Ising model
-    (J, g, z) = (1.0, 2.5, 0.0)
+@testset "Transverse field Ising model (g = $(g))" for (g, Tc) in zip(gs, Tcs)
+    J, z = 1.0, 0.0
     ce_alg = ising_operators(J, g, z; T = ComplexF64)
+    βc = 1 / Tc # Critical temperature
 
-    # Perform the time evolution.
-    βs, expvals, Os = time_evolve(ce_alg, time_alg, trunc_alg, obs_function)
+    # get PEPO for exp(-H Δβ)
+    ρ0 = InfinitePEPO(evolution_operator(ce_alg, Δβ))
+    ρ = deepcopy(ρ0)
+    env = CTMRGEnv(randn, ComplexF64, InfinitePartitionFunction(ρ), χenv)
 
-    # Extract the expectation values
-    ξs = [e[1][1] for e in expvals]
-    mzs = [e[2] for e in expvals]
-    mxs = [e[3] for e in expvals]
+    # observables
+    σx = SpinOperators.σˣ()
+    σz = SpinOperators.σᶻ()
+    lattice = fill(space(σx, 1), (1, 1))
+    σx = LocalOperator(lattice, (CartesianIndex(1, 1),) => σx)
+    σz = LocalOperator(lattice, (CartesianIndex(1, 1),) => σz)
 
-    # Critical temperature for the classical Ising model
-    Tc = 1.2737
-    βc = 1 / Tc
+    # Perform the time evolution
+    β = Δβ
+    for iter in 1:maxiter
+        D0s = [space(t) for t in ρ0.A]
+        Ds = [space(t) for t in ρ.A]
+        env = converge_ctmenv(ρ)
+        mx = expectation_value(ρ, σx, env)
+        mz = expectation_value(ρ, σz, env)
 
-    # Tests on the phase transition of the classical Ising model
-    @test all([((β < βc) && (abs(mz) < 0.5)) || ((β > βc) && (abs(mz) > 0.5)) || (abs(β - βc) < 2.0e-2) for (β, mz) in zip(βs, mzs)])
+        D = domain(ρ[1, 1, 1], 1)
+        @info "Virtual bond ρ = $(D)"
+        @info "β = $(round(β; digits = 4))"
+        @info "⟨σˣ⟩ = $(mx)"
+        @info "⟨σᶻ⟩ = $(mz)"
+
+        if abs(β - βc) > 2.0e-2
+            @test (β < βc) ? (abs(mz) < 0.5) : (abs(mz) > 0.5)
+        end
+        if g == 0
+            @test abs(mx) < 1.0e-6
+        end
+        if iter < maxiter
+            ρ = approximate(ρ0, ρ, trunc_alg)
+            normalize!.(ρ.A)
+            β += Δβ
+        end
+    end
 end

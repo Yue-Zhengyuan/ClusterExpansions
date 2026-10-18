@@ -1,123 +1,75 @@
-function get_update_dir(c, sites_to_update)
-    if length(sites_to_update) == 2
-        dir = (c[sites_to_update[2]][1] - c[sites_to_update[1]][1], c[sites_to_update[2]][2] - c[sites_to_update[1]][2])
-        conjugated = get_conjugated(dir)
-    elseif length(sites_to_update) == 1
-        dir = 0
-        conjugated = [Bool[0, 0, 1, 1]]
+"""Add the missing local tensors needed to match a finite-cluster exponential."""
+function solve_cluster!(PEPO::AbstractDict, cluster::Cluster, β::Number, alg::ClusterExpansion)
+    alg.verbosity >= 2 && @info "Solving cluster" cluster
+    updates = findall(levels -> !haskey(PEPO, levels), cluster.levels_sites)
+    isempty(updates) && return PEPO
+    !alg.solving_loops && cluster.m > 0 && return PEPO
+    levels = cluster.levels_sites[updates]
+
+    exp_H = exponentiate_hamiltonian(alg.twosite_op, alg.onesite_op, cluster, β)
+    RHS = exp_H - contract_PEPO(alg.T, cluster, PEPO, alg.spaces)
+    _tensor_isfinite(RHS) || error("Cluster residual contains nonfinite entries")
+    target_norm, residual_norm = norm(exp_H), norm(RHS)
+    isfinite(target_norm) && isfinite(residual_norm) || error("Cluster norms exceed the working scalar range")
+    # Register zero blocks as solved so roundoff-sized corrections do not leave
+    # missing keys in subsequent cluster environments.
+    roundoff = 10 * eps(real(scalartype(RHS))) * target_norm
+    if residual_norm <= roundoff
+        pspace = domain(alg.onesite_op)[1]
+        solutions = [_empty_cluster_tensor(alg.T, pspace, level, alg.spaces) for level in levels]
+    elseif length(updates) == 4 && cluster.N == 4 && cluster.m == 1
+        solutions, = solve_4_loop(RHS, cluster, alg.spaces; verbosity = alg.verbosity, maxsweeps = alg.loop_maxsweeps, tol = alg.loop_tol, linsolve_maxiter = alg.linsolve_maxiter, linsolve_tol = alg.linsolve_tol)
+    elseif length(updates) in (1, 2)
+        # The two-site cluster has no fixed tensors to contract into an environment.
+        A = cluster.N == 2 ? nothing : get_A(alg.T, cluster, PEPO, updates)
+        dir = length(updates) == 1 ? 0 : get_direction(cluster.cluster[updates[1]], cluster.cluster[updates[2]])
+        solutions = solve_index(A, RHS, updates, levels, dir, alg.spaces; verbosity = alg.verbosity, linsolve_tol = alg.linsolve_tol, linsolve_maxiter = alg.linsolve_maxiter)
     else
-        error("Number of sites to update $(length(sites_to_update)) not implemented")
+        throw(ArgumentError("Solving $(length(updates)) new tensors on $(cluster.N) sites with $(cluster.m) loops is not supported; use a lower order or solving_loops = false"))
     end
-    return dir, conjugated
+    for (level, solution) in zip(levels, solutions)
+        _tensor_isfinite(solution) || error("Cluster solver produced a nonfinite tensor at virtual levels $level")
+        PEPO[level] = solution
+    end
+    return PEPO
 end
 
-function solve_cluster(T, cluster, PEPO, β, twosite_op, onesite_op, spaces; verbosity = 2, solving_loops = true, svd = true)
-    if verbosity >= 2
-        println(cluster)
-        println(cluster.cluster)
-    end
-    sites_to_update = [i for (i, levels) in enumerate(cluster.levels_sites) if !(levels ∈ keys(PEPO))]
-    (length(sites_to_update) == 0) && return spaces
-    if !solving_loops && cluster.m > 0
-        @warn "Not solving loops"
-        return spaces
-    end
-    levels_to_update = cluster.levels_sites[sites_to_update]
-
-    exp_H = exponentiate_hamiltonian(twosite_op, onesite_op, cluster, β)
-    residual = contract_PEPO(T, cluster, PEPO, spaces)
-    # RHS = (exp_H/norm(exp_H) - residual/norm(exp_H))*norm(exp_H)
-    RHS = exp_H - residual
-
-    @assert !(any(isnan.(RHS.data))) "RHS contains elements that are NaN"
-    if (norm(RHS) < eps(real(T)) * 1.0e3)
-        if verbosity >= 2
-            @warn "Not solving this cluster: norm(RHS) = $(norm(RHS))"
-        end
-        return spaces
-    end
-    if length(sites_to_update) == 4 && cluster.m > 0 # second condition to excluse the case where the previous solutions have not been found
-        solutions, _ = solve_4_loop_optim(RHS, spaces, levels_to_update; verbosity)
-        # solutions, _, spaces = solve_4_loop_SVD(RHS, spaces(-1), levels_to_update; verbosity = verbosity)
-    elseif length(sites_to_update) ∈ [1, 2]
-        A = get_A(T, cluster, PEPO, sites_to_update)
-        dir, conjugated = get_update_dir(cluster.cluster, sites_to_update)
-        solutions = solve_index(T, A, RHS, conjugated, sites_to_update, levels_to_update, get_direction(dir), cluster.N, spaces; verbosity, svd)
-    else
-        @error "Number of sites to update = $(length(sites_to_update))"
-        return spaces
-    end
-    if isnothing(solutions)
-        if verbosity >= 2
-            @warn "Solution returned nothing"
-        end
-        return spaces
-    end
-    merge!(PEPO, Dict(zip(levels_to_update, solutions)))
-    return spaces
-end
-
-function move(clusters, x_shift, y_shift)
-    return [(c[1] + x_shift, c[2] + y_shift) for c in clusters]
-end
-
-function get_nontrivial_terms(N; prev_clusters = [[(0, 0)]])
-    if N == 1
-        return [[(0, 0)]]
-    end
-    # initialize new list of clusters
-    clusters = []
-    for cluster_indices in prev_clusters # iterate over all previous clusters
-        new_indices = []
-        # get all the possible new values for the new index
-        for (k₁, j₁) in cluster_indices
-            for (k₂, j₂) in [(k₁ + 1, j₁), (k₁ - 1, j₁), (k₁, j₁ + 1), (k₁, j₁ - 1)]
-                proposed_cluster = sort(vcat(cluster_indices, ((k₂, j₂))))
-                if !(((k₂, j₂) in new_indices) || ((k₂, j₂) in cluster_indices) || proposed_cluster in clusters)
-                    if (proposed_cluster ∉ clusters) && (move(proposed_cluster, -1, 0) ∉ clusters) && (move(proposed_cluster, 1, 0) ∉ clusters) && (move(proposed_cluster, 0, 1) ∉ clusters) && (move(proposed_cluster, 0, -1) ∉ clusters)
-                        push!(clusters, proposed_cluster)
-                        push!(new_indices, (k₂, j₂))
-                    end
-                end
-            end
-        end
-    end
-    return clusters
-end
-
-function get_all_indices(T, PEPO, p, β, twosite_op, onesite_op, spaces; levels_convention = "tree_depth", verbosity = 2, solving_loops = true, svd = true)
-    previous_clusters = [[(0, 0)]]
-    for N in 2:p
-        if verbosity >= 2
-            @info "N = $(N)"
-        end
-        cluster_indices = get_nontrivial_terms(N; prev_clusters = previous_clusters)
-        clusters = [Cluster(c; levels_convention = levels_convention) for c in cluster_indices]
-        sort!(clusters, by = p -> (p.m, p.n)) # Sort the clusters such that the loops and higher levels are solved last
+"""Solve clusters in increasing size, with tree and shorter-path updates first."""
+function _solve_clusters!(PEPO::AbstractDict, β::Number, alg::ClusterExpansion)
+    for (order, clusters) in enumerate(alg.clusters)
+        alg.verbosity >= 1 && @info "Cluster expansion" sites = order + 1 clusters = length(clusters)
         for cluster in clusters
-            spaces = solve_cluster(T, cluster, PEPO, β, twosite_op, onesite_op, spaces; verbosity, solving_loops, svd)
-        end
-        previous_clusters = cluster_indices
-    end
-    if verbosity >= 2
-        for (key, tens) in PEPO
-            @info "key = $(key)"
-            @info "Maximum is $(maximum(abs.(tens.data))), norm is $(norm(tens))"
-            @info "Summary = $(summary(tens))"
+            solve_cluster!(PEPO, cluster, β, alg)
         end
     end
     return PEPO
 end
 
-function clusterexpansion(T, p, β, twosite_op, onesite_op; levels_convention = "tree_depth", spaces = i -> (i >= 0) ? ℂ^(2^(2 * i)) : ℂ^10, verbosity = 2, solving_loops = true, svd = true)
-    (p < 10) || error("Only cluster up until 9th order are implemented correctly")
-    dim(spaces(0)) == 1 || error("The zeroth space should be of dimension 1")
-    pspace = domain(onesite_op)[1]
-    PEPO₀ = init_PEPO(T, β, onesite_op, spaces(0))
-    PEPO = get_all_indices(T, PEPO₀, p, β, twosite_op, onesite_op, spaces; levels_convention, verbosity, solving_loops, svd)
-    return PEPO, get_PEPO(T, pspace, PEPO, spaces)
+"""
+    clusterexpansion(alg::ClusterExpansion, t)
+
+Construct the local PEPO blocks and their direct-sum tensor for ``\\exp(-t H)``.
+Return `(blocks, tensor)` without normalizing either representation.
+For real-time evolution pass `t = im * Δt` and use a complex scalar type.
+"""
+function clusterexpansion(alg::ClusterExpansion, β::Number)
+    isfinite(β) || throw(ArgumentError("The evolution parameter must be finite"))
+    alg.T <: Real && !isreal(β) && throw(ArgumentError("A complex evolution parameter requires a complex working scalar type"))
+    step = convert(alg.T, β)
+    isfinite(step) || throw(ArgumentError("The evolution parameter overflows the working scalar type $(alg.T)"))
+    PEPO = init_PEPO(alg.T, step, alg.spaces(0), alg.onesite_op)
+    if !iszero(step) && !iszero(norm(alg.twosite_op))
+        _solve_clusters!(PEPO, step, alg)
+    end
+    return PEPO, get_PEPO(alg.T, domain(alg.onesite_op)[1], PEPO, alg.spaces)
 end
 
-function clusterexpansion(p, β, twosite_op, onesite_op; kwargs...)
-    return clusterexpansion(Complex{Float64}, p, β, twosite_op, onesite_op; kwargs...)
+"""Construct a cluster expansion with an explicit working scalar type."""
+function clusterexpansion(T::Type{<:Number}, p::Integer, β::Number, twosite_op::AbstractTensorMap, onesite_op::AbstractTensorMap; kwargs...)
+    return clusterexpansion(ClusterExpansion(twosite_op, onesite_op; T, p, kwargs...), β)
+end
+
+"""Construct a cluster expansion using complex double precision by default."""
+function clusterexpansion(p::Integer, β::Number, twosite_op::AbstractTensorMap, onesite_op::AbstractTensorMap; T::Type{<:Number} = ComplexF64, kwargs...)
+    return clusterexpansion(T, p, β, twosite_op, onesite_op; kwargs...)
 end

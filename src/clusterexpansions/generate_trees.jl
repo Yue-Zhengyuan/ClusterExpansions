@@ -1,74 +1,57 @@
-# Function to calculate the depth of each subtree
-function get_subtree_depths(tree::Graph, root::Int)
-    subtree_depths = Dict{Int, Int}()
-
-    function dfs(node, parent)
-        max_depth = 0
-        for neighbor in neighbors(tree, node)
-            if neighbor != parent
-                child_depth = dfs(neighbor, node)
-                max_depth = max(max_depth, child_depth)
-            end
+"""Find a tree's one or two centers and its diameter by pruning leaf layers."""
+function _tree_centers(graph::SimpleGraph{Int})
+    remaining = nv(graph)
+    remaining == 1 && return [1], 0
+    degrees = degree(graph)
+    leaves = findall(==(1), degrees)
+    layers = 0
+    while remaining > 2
+        remaining -= length(leaves)
+        next_leaves = Int[]
+        for leaf in leaves, neighbor in neighbors(graph, leaf)
+            degrees[neighbor] -= 1
+            degrees[neighbor] == 1 && push!(next_leaves, neighbor)
         end
-        subtree_depths[node] = max_depth + 1  # Depth = max child depth + 1
-        return subtree_depths[node]
+        leaves = next_leaves
+        layers += 1
     end
-
-    dfs(root, -1)
-    return subtree_depths
+    return leaves, 2 * layers + (remaining == 2)
 end
 
-# Function to convert a graph to a tree and label edges based on subtree depth
-function get_tree_depths(graph::Graph, bonds_indices::Vector{Tuple{Int64, Int64}}, root::Int)
-    # Perform BFS to create a spanning tree
-    tree = SimpleGraph(nv(graph))  # Initialize an empty graph with the same number of vertices
-    visited = [root]
-
-    queue = [root]
-    parent = Dict(root => -1) # Keep track of parents to avoid backtracking
-    while !isempty(queue)
-        current = popfirst!(queue)
+"""Return parent and subtree-depth arrays for a breadth-first spanning tree."""
+function _rooted_tree_depths(graph::SimpleGraph{Int}, root::Int)
+    parent = zeros(Int, nv(graph))
+    parent[root] = root
+    order = Int[root]
+    next = 1
+    while next <= length(order)
+        current = order[next]
+        next += 1
         for neighbor in neighbors(graph, current)
-            if !(neighbor in visited)
-                add_edge!(tree, current, neighbor)
-                push!(visited, neighbor)
-                queue = push!(queue, neighbor)
+            if iszero(parent[neighbor])
                 parent[neighbor] = current
+                push!(order, neighbor)
             end
         end
     end
-
-    # Calculate subtree depths
-    subtree_depths = get_subtree_depths(tree, root)
-
-    levels = Vector{Int}()
-    for edge in bonds_indices
-        u, v = edge
-        if parent[v] == u  # Edge points from parent to child
-            push!(levels, subtree_depths[v])
-        else # if parent[u] == v  # Edge points from child to parent -- include cycles
-            push!(levels, subtree_depths[u])
-        end
+    depths = ones(Int, nv(graph))
+    for node in Iterators.reverse(order)
+        node == root && continue
+        depths[parent[node]] = max(depths[parent[node]], depths[node] + 1)
     end
-
-    return levels, maximum(levels)
+    return parent, depths
 end
 
-function get_tree_depths(graph::Graph, bonds_indices::Vector{Tuple{Int64, Int64}})
-    levels = Vector{Int}()
-    max_depth = Inf
-    for site in 1:nv(graph)
-        new_levels, depth = get_tree_depths(graph, bonds_indices, site)
-        if depth < max_depth
-            levels = new_levels
-            max_depth = depth
-        elseif depth == max_depth
-            levels = min.(levels, new_levels)
+"""Minimize bond subtree depths over the selected tree centers or cycle roots."""
+function get_tree_depths(graph::SimpleGraph{Int}, bonds_indices::Vector{Tuple{Int, Int}}, roots::Vector{Int})
+    isempty(roots) && throw(ArgumentError("At least one tree root is required"))
+    levels = fill(typemax(Int), length(bonds_indices))
+    for root in roots
+        parent, depths = _rooted_tree_depths(graph, root)
+        for (i, (u, v)) in enumerate(bonds_indices)
+            depth = parent[v] == u ? depths[v] : depths[u]
+            levels[i] = min(levels[i], depth)
         end
     end
     return levels
-end
-
-function get_tree_depths(graph::Graph, bonds_indices::Vector{Tuple{Int64, Int64}}, roots::Vector{Int})
-    return min.([get_tree_depths(graph, bonds_indices, root)[1] for root in roots]...)
 end

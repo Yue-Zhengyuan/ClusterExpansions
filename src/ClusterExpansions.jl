@@ -1,36 +1,38 @@
 module ClusterExpansions
 
 using TensorKit
+using LinearAlgebra
 using MatrixAlgebraKit: TruncationStrategy
-using KrylovKit
-using BlockTensorKit: ⊞, SumSpace
-using MPSKit
-using PEPSKit
+using KrylovKit: LSMR, lssolve
+using BlockTensorKit: SumSpace, spzeros
+using PEPSKit: InfinitePEPS, InfinitePEPO
+import PEPSKit
 using Graphs
+using Random
 
 import TensorKitTensors.SpinOperators as SO
 import TensorKitTensors.FermionOperators as FO
 
-include("clusterexpansions/ce_alg.jl")
+include("utility.jl")
+include("clusterexpansions/spaces.jl")
 include("clusterexpansions/generate_trees.jl")
+include("clusterexpansions/generate_loops.jl")
 include("clusterexpansions/clusters.jl")
-include("clusterexpansions/contractions.jl")
+include("clusterexpansions/generate_clusters.jl")
+include("clusterexpansions/ce_alg.jl")
 include("clusterexpansions/PEPOs.jl")
+include("clusterexpansions/contractions.jl")
 
 include("clusterexpansions/solvers/linearsolvers.jl")
+include("clusterexpansions/solvers/loopsolvers.jl")
 include("clusterexpansions/solve_clusters.jl")
 
+include("time_evolution/layers.jl")
 include("models/models.jl")
-
-export EntanglementFiltering, filter_loop, truncate_loop
-
-export PEPOObservable, PEPO_observables, localoperator_model, calculate_observables
-
-export fidelity, apply_PEPO_exact
 
 export ClusterExpansion
 export clusterexpansion, evolution_operator
-
-export ising_operators
+export apply_PEPO_exact, combine_layers
+export ising_operators, heisenberg_operators, spinless_fermion_operators
 
 end # module ClusterExpansions

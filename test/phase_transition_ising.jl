@@ -13,7 +13,7 @@ maxiter = 10
 
 # Set up PEPO truncation algorithm
 Dcut = 5
-trunc_alg = LocalApprox(truncrank(Dcut))
+trunc_alg = LocalApproximation(truncrank(Dcut))
 
 gs = [2.5, 0.0]
 Tcs = [1.2737, 2 / (log(1 + sqrt(2)))]
@@ -67,7 +67,7 @@ end
             @test abs(mx) < 1.0e-6
         end
         if iter < maxiter
-            ρ = approximate(ρ0, ρ, trunc_alg)
+            ρ, = approximate(ρ0, ρ, trunc_alg)
             normalize!.(ρ.A)
             β += Δβ
         end

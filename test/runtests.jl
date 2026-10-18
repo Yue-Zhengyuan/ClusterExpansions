@@ -1,5 +1,5 @@
-using SafeTestsets
+using Test
 
-@time @safetestset "Phase transition - Ising model" begin
-    include("phase_transition_ising.jl")
+@testset "Core evolution and layers" begin
+    include("focused.jl")
 end

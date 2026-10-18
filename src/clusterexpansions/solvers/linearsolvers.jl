@@ -1,255 +1,258 @@
-function get_triv_tensors(T, conjugated, trivspace)
+"""Build boundary vectors with the orientation of each trivial virtual leg."""
+function get_triv_tensors(::Type{T}, conjugated, trivspace::ElementarySpace) where {T}
     tensor = ones(T, trivspace)
     tensor_conj = ones(T, trivspace')
-    return [conj ? tensor_conj : tensor for conj in conjugated]
+    return [conjugated_leg ? tensor_conj : tensor for conjugated_leg in conjugated]
 end
 
-function get_graph(cluster)
-    graph = fill(0, cluster.N, 4)
-    for (bond_s, bond_i) in zip(cluster.bonds_sites, cluster.bonds_indices)
-        dir = get_direction(bond_s[1], bond_s[2])
-        graph[bond_i[1], dir[1]] = bond_i[2]
-        graph[bond_i[2], dir[2]] = bond_i[1]
+"""Tabulate the neighboring site in each lattice direction, using zero at the boundary."""
+function get_graph(cluster::Cluster)
+    graph = zeros(Int, cluster.N, 4)
+    for (bond_sites, bond_indices) in zip(cluster.bonds_sites, cluster.bonds_indices)
+        dir = get_direction(bond_sites...)
+        graph[bond_indices[1], dir[1]] = bond_indices[2]
+        graph[bond_indices[2], dir[2]] = bond_indices[1]
     end
     return graph
 end
 
-function get_A(T, cluster, PEPO, sites_to_update)
+"""Contract all known tensors into the environment of one site or two adjacent sites."""
+function get_A(::Type{T}, cluster::Cluster, PEPO::AbstractDict, sites_to_update) where {T}
     updates = length(sites_to_update)
-    fixed_tensors = cluster.N - updates
+    updates in (1, 2) || throw(ArgumentError("the linear environment supports one or two updated sites"))
+    updated = falses(cluster.N)
+    for site in sites_to_update
+        updated[site] = true
+    end
+    count(updated) == updates || throw(ArgumentError("updated sites must be distinct"))
+    included_sites = findall(!, updated)
+    fixed_tensors = length(included_sites)
+    row_for_site = zeros(Int, cluster.N)
+    row_for_site[included_sites] .= eachindex(included_sites)
     graph = get_graph(cluster)
-    contraction_indices = fill(0, fixed_tensors, 6)
-    for i in 1:fixed_tensors
-        contraction_indices[i, 1] = -i
-        contraction_indices[i, 2] = -(fixed_tensors + i)
+    opposite = (3, 4, 1, 2)
+    contraction_indices = zeros(Int, fixed_tensors, 6)
+    for row in 1:fixed_tensors
+        contraction_indices[row, 1] = -row
+        contraction_indices[row, 2] = -(fixed_tensors + row)
     end
-    included_sites = setdiff(1:cluster.N, sites_to_update)
-    conv = i -> i - sum([j ∈ sites_to_update for j in 1:i])
-    m = 1
-    for i in included_sites
-        for j in 1:4
-            if !(graph[i, j] ∈ (0, sites_to_update...)) && (contraction_indices[conv(i), j + 2] == 0)
-                ind = findall(x -> x == i, graph[graph[i, j], :])[1]
-                contraction_indices[conv(i), j + 2] = m
-                contraction_indices[conv(graph[i, j]), ind + 2] = m
-                m += 1
-            end
+
+    next_index = 1
+    for site in included_sites, dir in 1:4
+        neighbor = graph[site, dir]
+        row = row_for_site[site]
+        if neighbor != 0 && !updated[neighbor] && contraction_indices[row, dir + 2] == 0
+            contraction_indices[row, dir + 2] = next_index
+            contraction_indices[row_for_site[neighbor], opposite[dir] + 2] = next_index
+            next_index += 1
         end
     end
-    number_of_bonds = copy(m) - 1
+    number_of_bonds = next_index - 1
     conjugated = Bool[]
-    for i in included_sites
-        for j in 1:4
-            if (graph[i, j] == 0)
-                contraction_indices[conv(i), j + 2] = m
-                push!(conjugated, j > 2)
-                m += 1
-            end
+    for site in included_sites, dir in 1:4
+        if graph[site, dir] == 0
+            contraction_indices[row_for_site[site], dir + 2] = next_index
+            push!(conjugated, dir > 2)
+            next_index += 1
         end
     end
+
     open_conjugated = Bool[]
     open_indices = Int[]
-    spaces = fill((0, 0), updates, 5 - updates)
-    m = 2 * fixed_tensors + 1
-    opposite = dir -> 4 - dir + 2 * (dir ∈ (2, 4))
-    for (enum, i) in enumerate(sites_to_update)
-        kⱼ = 0
-        for j in 1:4
-            if graph[i, j] ∉ sites_to_update
-                kⱼ += 1
-                if graph[i, j] == 0
-                    push!(open_conjugated, j > 2)
-                    push!(open_indices, -m)
-                else
-                    ind = findall(x -> x == i, graph[graph[i, j], :])[1]
-                    contraction_indices[conv(graph[i, j]), ind + 2] = -m
-                    spaces[enum, kⱼ] = (graph[i, j], opposite(j))
-                end
-                m += 1
-            end
+    next_open = 2 * fixed_tensors + 1
+    for site in sites_to_update, dir in 1:4
+        neighbor = graph[site, dir]
+        if neighbor != 0 && updated[neighbor]
+            continue
+        elseif neighbor == 0
+            push!(open_conjugated, dir > 2)
+            push!(open_indices, -next_open)
+        else
+            contraction_indices[row_for_site[neighbor], opposite[dir] + 2] = -next_open
         end
+        next_open += 1
     end
-    trivspace = domain(PEPO[0, 0, 0, 0])[1]
-    included_sites = setdiff(1:length(cluster.levels_sites)[1], sites_to_update)
+    virtual_legs = next_open - 2 * fixed_tensors - 1
+    virtual_legs == 2 * updates + 2 || throw(ArgumentError("the two updated sites must share a bond"))
+
+    trivspace = domain(PEPO[(0, 0, 0, 0)])[1]
     nontriv_tensors = [PEPO[cluster.levels_sites[site]] for site in included_sites]
     triv_tensors = vcat(get_triv_tensors(T, conjugated, trivspace), get_triv_tensors(T, open_conjugated, trivspace))
-    triv_contractions = vcat([[number_of_bonds + i] for i in 1:length(conjugated)], [[i] for i in open_indices])
-    all_contractions = vcat([contraction_indices[i, :] for i in 1:size(contraction_indices)[1]], triv_contractions)
-    all_tensors = vcat(nontriv_tensors, triv_tensors)
-
-    A = ncon(all_tensors, all_contractions)
-    len = length(domain(A)) + length(codomain(A))
-    A = permute(A, (Tuple(1:(len - 4)), Tuple((len - 3):len)))
-    return A
+    triv_contractions = vcat([[number_of_bonds + i] for i in eachindex(conjugated)], [[i] for i in open_indices])
+    all_contractions = vcat([contraction_indices[row, :] for row in 1:fixed_tensors], triv_contractions)
+    A = ncon(vcat(nontriv_tensors, triv_tensors), all_contractions)
+    physical_legs = 2 * fixed_tensors
+    return permute(A, (Tuple(1:physical_legs), Tuple((physical_legs + 1):(physical_legs + virtual_legs))))
 end
 
-function apply_A_onesite(A, x::TensorMap, sites_to_update, N, ::Val{false})
-    Ax = ncon([A, x], [hcat(transpose(-1:-1:(-2 * N + 2)), [1 2 3 4]), [1 2 3 4 -2 * N + 1 -2 * N]])
-    len = length(domain(Ax)) + length(codomain(Ax))
-    Ax = permute(Ax, (Tuple(1:(len - 2)), Tuple((len - 1):len)))
-    return Ax
+"""Apply the one-site environment to a tensor with its virtual legs first."""
+function apply_A_onesite(A::AbstractTensorMap, x::AbstractTensorMap, N::Integer, ::Val{false})
+    fixed_legs = 2 * N - 2
+    network = ((ntuple(i -> -i, fixed_legs)..., 1, 2, 3, 4), (1, 2, 3, 4, -fixed_legs - 1, -fixed_legs - 2))
+    Ax = ncon((A, x), map(collect, network))
+    return permute(Ax, (Tuple(1:fixed_legs), (fixed_legs + 1, fixed_legs + 2)))
 end
 
-function apply_A_onesite(A, Ax::TensorMap, sites_to_update, N, ::Val{true})
-    Ax′ = twist(Ax, N:(2 * N - 2))
-    x = ncon([A, Ax′], [hcat(transpose(1:(2 * N - 2)), [-1 -2 -3 -4]), hcat(transpose(1:(2 * N - 2)), [-5 -6])], [true false])
-
-    x = twist(x, [1 2])
-    x = permute(x, ((1, 2, 3, 4), (5, 6)))
-    return x
+"""Apply the adjoint one-site environment, including the fermionic twists."""
+function apply_A_onesite(A::AbstractTensorMap, Ax::AbstractTensorMap, N::Integer, ::Val{true})
+    fixed_legs = 2 * N - 2
+    Ax′ = twist(Ax, N:fixed_legs)
+    network = ((Tuple(1:fixed_legs)..., -1, -2, -3, -4), (Tuple(1:fixed_legs)..., -5, -6))
+    x = ncon((A, Ax′), map(collect, network), (true, false))
+    return permute(twist(x, (1, 2)), ((1, 2, 3, 4), (5, 6)))
 end
 
-function permute_dir(x, dir, second)
-    tup = zeros(Int, 4)
-    tup[dir] = 6 - 5 * second
-    count = 1
-    for i in 1:4
-        if tup[i] == 0
-            tup[i] = count + 2 + second
-            count += 1
-        end
+"""Select the fermionic twists associated with the orientation of an updated bond."""
+function get_twists(dir::Tuple{Int, Int})
+    dir in ((3, 1), (4, 2)) && return (1, 2, 4)
+    dir in ((1, 3), (2, 4)) && return (1, 4, 5)
+    throw(ArgumentError("invalid bond directions: $dir"))
+end
+
+"""Apply the two-site environment to a tensor with its six external virtual legs first."""
+function apply_A_twosite(A::AbstractTensorMap, x::AbstractTensorMap, N::Integer, dir, ::Val{false})
+    fixed_legs = 2 * N - 4
+    network = ((ntuple(i -> -i, fixed_legs)..., 1, 2, 3, 4, 5, 6), (1, 2, 3, 4, 5, 6, -fixed_legs - 1, -fixed_legs - 2, -fixed_legs - 3, -fixed_legs - 4))
+    Ax = ncon((A, x), map(collect, network))
+    return permute(Ax, (Tuple(1:fixed_legs), Tuple((fixed_legs + 1):(fixed_legs + 4))))
+end
+
+"""Apply the adjoint two-site environment, including the orientation-dependent twists."""
+function apply_A_twosite(A::AbstractTensorMap, Ax::AbstractTensorMap, N::Integer, dir::Tuple{Int, Int}, ::Val{true})
+    fixed_legs = 2 * N - 4
+    Ax′ = twist(Ax, (N - 1):fixed_legs)
+    network = ((Tuple(1:fixed_legs)..., -1, -2, -3, -4, -5, -6), (Tuple(1:fixed_legs)..., -7, -8, -9, -10))
+    x = ncon((A, Ax′), map(collect, network), (true, false))
+    return permute(twist(x, get_twists(dir)), ((1, 2, 3, 4, 5, 6), (7, 8, 9, 10)))
+end
+
+"""Restore the physical-first PEPO convention after splitting a two-site tensor."""
+function permute_dir(x::AbstractTensorMap, dir::Integer, second::Integer)
+    1 <= dir <= 4 || throw(ArgumentError("a virtual direction must lie between one and four"))
+    bond_index = 6 - 5 * second
+    external_indices = ntuple(i -> i + 2 + second, 3)
+    virtual_indices = ntuple(4) do i
+        i == dir ? bond_index : external_indices[i - (i > dir)]
     end
-    return permute(x, ((1, 2) .+ second, (Tuple(tup))))
+    return permute(x, ((1 + second, 2 + second), virtual_indices))
 end
 
-function solve_index(T, A, exp_H, conjugated, sites_to_update, levels_to_update, dir, N, spaces; verbosity = 2, svd = true)
-    # pspace = codomain(exp_H)[1]
-    trivspace = spaces(0)
-    if N == 2
-        # xtry = zeros(T, pspace ⊗ pspace' ⊗ prod([conj ? trivspace : trivspace' for conj = conjugated[1]]), pspace' ⊗ pspace ⊗ prod([conj ? trivspace' : trivspace for conj = conjugated[2]]))
-        b = permute(exp_H, ((1, 3), (2, 4)))
-        if dir == (3, 1)
-            Isom_domain = isomorphism(domain(b), domain(b) ⊗ trivspace ⊗ trivspace' ⊗ trivspace')
-            Isom_codomain = isomorphism(codomain(b) ⊗ trivspace' ⊗ trivspace' ⊗ trivspace, codomain(b))
-        elseif dir == (2, 4)
-            Isom_domain = isomorphism(domain(b), domain(b) ⊗ trivspace ⊗ trivspace ⊗ trivspace')
-            Isom_codomain = isomorphism(codomain(b) ⊗ trivspace' ⊗ trivspace ⊗ trivspace, codomain(b))
-        else
-            @error "Unexpected value for dir"
-        end
-        x = Isom_codomain * b * Isom_domain
-        # x.data = b.data
-        # x[][:,:,1,1,1,:,:,1,1,1] = b[]
-    elseif length(sites_to_update) == 2
-        A = permute(A, (Tuple(1:(2 * N - 4)), Tuple((2 * N - 3):(2 * N + 2))))
+"""Embed both factors in the requested bond space when truncation retains fewer states."""
+function _pad_linear_bond(x1::AbstractTensorMap, x2::AbstractTensorMap, bondspace::ElementarySpace)
+    retained_space = only(domain(x1))
+    retained_space == bondspace && return x1, x2
+    embedding = isometry(scalartype(x1), bondspace, retained_space)
+    return x1 * embedding', embedding * x2
+end
 
-        apply_A = (x, val) -> apply_A_twosite(A, x, N, dir, val)
-
-        included_sites = setdiff(1:N, sites_to_update)
-        exp_H_flipped = permute(exp_H, ((included_sites..., (included_sites .+ N)...), (sites_to_update..., (sites_to_update .+ N)...)))
-
-        if scalartype(exp_H) == ComplexF64
-            x, info = lssolve(apply_A, exp_H_flipped, LSMR(verbosity = verbosity, maxiter = 2000, tol = 1.0e-16))
-            # x = permute(x, ((1,6,3,4,8), (2,7,9,5,10)))
-            # x = (x + x')/2
-            # x = permute(x, ((1,6,3,4,9), (2,7,5,8,10)))
-        else
-            x, info = lssolve(apply_A, exp_H_flipped, LSMR(verbosity = verbosity, maxiter = 1000))
-        end
-        error = norm(apply_A(x, Val(false)) - exp_H_flipped) / norm(exp_H_flipped)
-        if error > 1.0e-10 && verbosity > 0
-            @warn "Error made on the solution is of the order $(error)"
-        end
-        x = permute(x, ((7, 9, 1, 2, 3), (8, 10, 4, 5, 6)))
-
-    elseif length(sites_to_update) == 1
-        A = permute(A, (Tuple(1:(2 * N - 2)), Tuple((2 * N - 1):(2 * N + 2))))
-
-        apply_A = (x, val) -> apply_A_onesite(A, x, sites_to_update, N, val)
-
-        included_sites = setdiff(1:N, sites_to_update[1])
-        exp_H_flipped = permute(exp_H, ((included_sites..., (included_sites .+ N)...), (sites_to_update[1], sites_to_update[1] + N)))
-
-        if scalartype(exp_H) == ComplexF64
-            x, info = lssolve(apply_A, exp_H_flipped, LSMR(verbosity = verbosity, maxiter = 2000, tol = 1.0e-16))
-        else
-            x, info = lssolve(apply_A, exp_H_flipped, LSMR(verbosity = verbosity, maxiter = 1000))
-        end
-        error = norm(apply_A(x, Val(false)) - exp_H_flipped) / norm(exp_H_flipped)
-        if error > 1.0e-10 && verbosity > 0
-            @warn "Error made on the solution is of the order $(error)"
-        end
-        x = permute(x, ((5, 6), (1, 2, 3, 4)))
-        x = [x]
+"""Solve a guarded least-squares equation with an absolute or relative normal-residual tolerance."""
+function _solve_cluster_equation(
+        apply_A, rhs::AbstractTensorMap;
+        linsolve_tol = nothing, linsolve_maxiter::Integer = 1000,
+        rtol::Real = eps(real(scalartype(rhs))), verbosity::Integer = 0
+    )
+    linsolve_maxiter > 0 || throw(ArgumentError("linsolve_maxiter must be positive"))
+    isfinite(rtol) && rtol >= 0 || throw(ArgumentError("The relative linear tolerance must be finite and nonnegative"))
+    isnothing(linsolve_tol) || (isfinite(linsolve_tol) && linsolve_tol >= 0) ||
+        throw(ArgumentError("linsolve_tol must be finite and nonnegative"))
+    _tensor_isfinite(rhs) || throw(ArgumentError("The linear right-hand side contains nonfinite entries"))
+    rhs_norm = norm(rhs)
+    normal_rhs = apply_A(rhs, Val(true))
+    _tensor_isfinite(normal_rhs) || throw(ArgumentError("The linear environment produced nonfinite entries"))
+    normal_norm = norm(normal_rhs)
+    isfinite(rhs_norm) && isfinite(normal_norm) || throw(ArgumentError("The linear equation has a nonfinite norm"))
+    tolerance = isnothing(linsolve_tol) ? rtol * normal_norm : linsolve_tol
+    # KrylovKit normalizes both vectors before its first convergence check.
+    # Handle stationary or zero equations before that normalization divides by zero.
+    if iszero(rhs_norm) || iszero(normal_norm) || normal_norm <= tolerance
+        x = zero(normal_rhs)
+        info = (;
+            converged = 1, relative_error = iszero(rhs_norm) ? zero(rhs_norm) : one(rhs_norm),
+            normal_residual = normal_norm, numiter = 0, numops = 1,
+        )
     else
-        error("Impossible to use a linear solver when the number of tensors to update is equal to $(length(sites_to_update))")
+        # Reuse the adjoint contraction already needed by the degeneracy check.
+        initial = Ref{Union{Nothing, typeof(normal_rhs)}}(normal_rhs)
+        apply_adjoint = function (tensor)
+            cached = initial[]
+            if tensor === rhs && !isnothing(cached)
+                initial[] = nothing
+                return cached
+            end
+            return apply_A(tensor, Val(true))
+        end
+        operator = (tensor -> apply_A(tensor, Val(false)), apply_adjoint)
+        x, convergence = lssolve(operator, rhs, LSMR(; verbosity = 0, maxiter = linsolve_maxiter, tol = tolerance))
+        info = (;
+            converged = convergence.converged, relative_error = norm(convergence.residual) / rhs_norm,
+            normal_residual = convergence.normres, numiter = convergence.numiter, numops = convergence.numops,
+        )
     end
-    if norm(x) == 0
-        if verbosity > 0
-            @warn "Norm of the solution is zero"
-        end
-        return nothing
+    if verbosity > 0 && (info.converged == 0 || info.relative_error > 1.0e-10)
+        @warn "Cluster linear solve finished with relative residual $(info.relative_error)" converged = info.converged iterations = info.numiter
     end
-    if length(sites_to_update) == 2
-        if svd
-            U, Σ, V = svd_trunc(x, trunc = truncspace(spaces(levels_to_update[1][dir[1]])))
-            x1 = U * sqrt(Σ)
-            x2 = sqrt(Σ) * V
-            if norm(x - x1 * x2) / norm(x) > eps(real(T)) * 1.0e2 && verbosity > 0
-                @warn "Error made on the SVD is of the order $(norm(x - x1 * x2) / norm(x))"
-            end
-        else
-            if dir == (3, 1)
-                x = flip(x, (2, 3, 4, 6, 9, 10))
-                x = permute(x, ((1, 2, 3, 4, 5), (6, 7, 9, 10, 8)))
-            else
-                @error "TBA"
-            end
-            if !(ishermitian(x))
-                x = (x + x') / 2
-                if verbosity > 0
-                    @warn "Hermiticicing: Change is of order $(norm(x - x') / (2 * norm(x)))"
-                end
-            end
-            eigval, eigvec = eig_with_truncation(x, spaces(levels_to_update[1][dir[1]]))
-            x1 = eigvec * sqrt(eigval)
-            x2 = sqrt(eigval) * eigvec'
-            @assert norm(x - x1 * x2) < eps(real(T)) * 1.0e2 "Error made on the eigenvalue decomposition is of the order $(norm(x - x1 * x2))"
-            # @assert norm(x - x1 * x2)/norm(x) < eps(real(T))*1e2 "Error made on the eigenvalue decomposition is of the order $(norm(x - x1 * x2)/norm(x))"
-            x1 = flip(x1, (2, 3, 4))
-            x2 = permute(x2, ((1,), (2, 3, 6, 4, 5)))
-            x2 = flip(x2, (2, 5, 6))
-        end
-        x1 = permute_dir(x1, dir[1], 0)
-        x2 = permute_dir(x2, dir[2], 1)
-        if (dir == (3, 1) || dir == (4, 2))
-            x1 = permute(flip(x1, 2 + dir[1]), ((1, 2), (3, 4, 5, 6)))
-            x2 = permute(flip(x2, 2 + dir[2]), ((1, 2), (3, 4, 5, 6)))
-        end
-        # x2_rot = rotl180_fermionic(x2)
-        x = [x1, x2]
-        # x = symmetrize_cluster!(x1, x2, dir)
-    elseif length(sites_to_update) == 3
-        @warn "This happens because the error in the previous levels is too small - be warned, things can go wrong"
-        @warn "Using eigendecomposition regardless of what you want"
-        if dir == (3, 1)
-            x = flip(x, (2, 3, 4, 6, 9, 10))
-            x = permute(x, ((1, 2, 3, 4, 5), (6, 7, 9, 10, 8)))
-        else
-            @error "TBA"
-        end
-        if !(ishermitian(x))
-            x = (x + x') / 2
-            @warn "Hermiticicing: Change is of order $(norm(x - x') / (2 * norm(x)))"
-        end
-        eigval, eigvec = eig_with_truncation(x, spaces(levels_to_update[1][dir[1]]))
-        x1 = eigvec * sqrt(eigval)
-        x2 = sqrt(eigval) * eigvec'
-        @assert norm(x - x1 * x2) / norm(x) < 1.0e-10 "Error made on the eigenvalue decomposition is of the order $(norm(x - x1 * x2) / norm(x))"
-        println("Error made on the eigenvalue decomposition is of the order $(norm(x - x1 * x2) / norm(x))")
-        x1 = flip(x1, (2, 3, 4))
-        x2 = permute(x2, ((1,), (2, 3, 6, 4, 5)))
-        x2 = flip(x2, (2, 5, 6))
+    return x, info
+end
 
-        x1 = permute_dir(x1, dir[1], 0)
-        x2 = permute_dir(x2, dir[2], 1)
-        if (dir == (3, 1) || dir == (4, 2))
-            x1 = permute(flip(x1, 2 + dir[1]), ((1, 2), (3, 4, 5, 6)))
-            x2 = permute(flip(x2, 2 + dir[2]), ((1, 2), (3, 4, 5, 6)))
-        end
+"""Add the trivial external legs to an isolated two-site residual in its bond orientation."""
+function _isolated_twosite_tensor(rhs::AbstractTensorMap, dir::Tuple{Int, Int}, trivspace::ElementarySpace)
+    get_twists(dir)
+    T = scalartype(rhs)
+    matrix = permute(rhs, ((1, 3), (2, 4)))
+    left_directions = Tuple(direction for direction in 1:4 if direction != dir[1])
+    right_directions = Tuple(direction for direction in 1:4 if direction != dir[2])
+    left_spaces = ⊗((direction > 2 ? trivspace : trivspace' for direction in left_directions)...)
+    right_spaces = ⊗((direction > 2 ? trivspace' : trivspace for direction in right_directions)...)
+    left = isomorphism(T, codomain(matrix) ⊗ left_spaces, codomain(matrix))
+    right = isomorphism(T, domain(matrix), domain(matrix) ⊗ right_spaces)
+    return left * matrix * right
+end
 
-        x = [x1, x2]
-        # x = symmetrize_cluster!(x1, x2, dir)
+"""Solve for one missing PEPO tensor or a bonded pair, then restore their leg conventions."""
+function solve_index(
+        A, exp_H::AbstractTensorMap, sites_to_update, levels_to_update, dir, spaces;
+        verbosity::Integer = 0, linsolve_tol = nothing, linsolve_maxiter::Integer = 1000
+    )
+    N = numout(exp_H)
+    updates = length(sites_to_update)
+    updates in (1, 2) || throw(ArgumentError("a linear solve requires one or two updated tensors"))
+    if N == 2 && updates == 2
+        x = _isolated_twosite_tensor(exp_H, dir, spaces(0))
+    else
+        fixed_legs = 2 * (N - updates)
+        virtual_legs = 2 * updates + 2
+        A = permute(A, (Tuple(1:fixed_legs), Tuple((fixed_legs + 1):(fixed_legs + virtual_legs))))
+        included_sites = setdiff(1:N, sites_to_update)
+        rhs = permute(exp_H, ((included_sites..., (included_sites .+ N)...), (sites_to_update..., (sites_to_update .+ N)...)))
+        apply_A = if updates == 1
+            (tensor, adjoint) -> apply_A_onesite(A, tensor, N, adjoint)
+        else
+            (tensor, adjoint) -> apply_A_twosite(A, tensor, N, dir, adjoint)
+        end
+        x, _ = _solve_cluster_equation(apply_A, rhs; verbosity, linsolve_tol, linsolve_maxiter)
+        iszero(norm(x)) && !iszero(norm(rhs)) &&
+            error("The cluster linear solve returned zero for a nonzero residual; check the virtual spaces or tighten linsolve_tol")
+        x = updates == 1 ? permute(x, ((5, 6), (1, 2, 3, 4))) : permute(x, ((7, 9, 1, 2, 3), (8, 10, 4, 5, 6)))
     end
-    return x
+    _tensor_isfinite(x) || error("The cluster linear solve returned a nonfinite tensor")
+    updates == 1 && return [x]
+
+    bondspace = spaces(levels_to_update[1][dir[1]])
+    reverse_bond = dir in ((3, 1), (4, 2))
+    # A later arrow flip must produce the requested dual space, including its charges.
+    factor_space = reverse_bond ? flip(bondspace') : bondspace
+    U, Σ, V, truncation_error = svd_trunc(x; trunc = truncspace(factor_space))
+    sqrt_Σ = sqrt(Σ)
+    x1, x2 = _pad_linear_bond(U * sqrt_Σ, sqrt_Σ * V, factor_space)
+    solution_norm = norm(x)
+    if verbosity > 0 && truncation_error > 100 * eps(real(scalartype(x))) * solution_norm
+        @warn "Two-site SVD has relative truncation error $(truncation_error / solution_norm)"
+    end
+    x1 = permute_dir(x1, dir[1], 0)
+    x2 = permute_dir(x2, dir[2], 1)
+    if reverse_bond
+        x1 = permute(flip(x1, 2 + dir[1]), ((1, 2), (3, 4, 5, 6)))
+        x2 = permute(flip(x2, 2 + dir[2]), ((1, 2), (3, 4, 5, 6)))
+    end
+    return [x1, x2]
 end
